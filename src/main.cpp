@@ -20,6 +20,6 @@ int main(int argc, char** argv)
 	point.z = -5.24;
 	std::cout << "点: ( " << point.x << " , " << point.y << " , " << point.z << " )" << std::endl;
 	std::cout << "分辨率: " << leaf_size << "m" << std::endl;
-	auto result = getFastVolume(cloud_src, normal, point, leaf_size); // 快速体积计算
+
 	return 0;
 }

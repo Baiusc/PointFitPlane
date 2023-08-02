@@ -75,7 +75,8 @@ endif()
 ### ----------------点拟合面，纯C++项目------------------
 
 # 生成对象库文件 .lib
-add_library(PointFitPlane STATIC)
+# add_library(PointFitPlane STATIC)
+add_executable(PointFitPlane)
 # 设置自身源和包含目录
 target_sources(PointFitPlane PRIVATE ${SOURCE} ${INCLUDE})
 target_include_directories(PointFitPlane PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -88,7 +89,11 @@ target_link_libraries(
         ${CMAKE_THREAD_LIBS_INIT}
 )
 # 使用调试库
-target_compile_options(PointFitPlane PUBLIC $<$<CONFIG:DEBUG>:/MDd>)
+# target_compile_options(PointFitPlane PUBLIC $<$<CONFIG:DEBUG>:/MDd>)
+
+
+
+
 
 
 
