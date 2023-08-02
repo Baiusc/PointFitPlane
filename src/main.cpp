@@ -3,7 +3,7 @@ using namespace MyFunc;
 std::mutex UpdateMutex;
 pcl::PointCloud<PointT>::Ptr cloud_src(new pcl::PointCloud<PointT>); //输入的隧道点云
 //pcl::visualization::PCLVisualizer viewer("没有PCLVisualizer单开vtk会报错"); // Warning: Link to vtkInteractionStyle for default style selection
-int main(int argc, char** argv)
+int main_a(int argc, char** argv)
 {
 #ifdef _OPENMP
 	std::cout << "OpenMP support is enabled" << std::endl;

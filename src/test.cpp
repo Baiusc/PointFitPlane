@@ -1,16 +1,7 @@
+#pragma once
 #include "Test.h"
-//#include <mutex>
-//#include "vtkAbstractTransform.h"
 
-namespace Test
+namespace PclHelper
 {
-    __declspec(dllexport)
-    // 
-    int testFunc()
-    {
 
-        std::cout << "C++" << std::endl;
-
-        return 3;
-    }
 }
