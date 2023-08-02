@@ -1,5 +1,5 @@
-#include "FastVolume.h"
-namespace FastVolume
+#include "MyFunc.h"
+namespace MyFunc
 {
 	__declspec(dllexport)
 	// 定义全局变量来存储当前选中的点的坐标
@@ -26,22 +26,7 @@ namespace FastVolume
 		reader.read(filename, *cloud);
 		std::cout << "cloud_src has: " << cloud->points.size() << " data points." << std::endl;
 	}
-	/// <summary>
-	/// pcl和csf库的点云对象类型转换
-	/// </summary>
-	/// <param name="pclCloud">pcl库的点云对象</param>
-	/// <param name="csfCloud">csf库的点云对象</param>
-	void pcl2csf(const pcl::PointCloud<PointT> pclCloud, csf::PointCloud& csfCloud)
-	{
-		for (const auto& pclPoint : pclCloud)
-		{
-			csf::Point csfPoint;
-			csfPoint.x = pclPoint.x;
-			csfPoint.y = pclPoint.y; // 将pcl点云的z坐标赋值给csf点云的y坐标
-			csfPoint.z = pclPoint.z; // 将pcl点云的y坐标取负并赋值给csf点云的z坐标
-			csfCloud.push_back(csfPoint);
-		}
-	}
+
 	/// <summary>
 	/// 保存点云为txt
 	/// </summary>
@@ -242,55 +227,6 @@ namespace FastVolume
 
 #pragma region 详细步骤方法
 
-	/// <summary>
-	/// CSF地面分割
-	/// </summary>
-	/// <param name="pclCloud">pcl原点云</param>
-	/// <param name="segCloud">pcl地面点云</param>
-	void csf_ground_segmentation(const pcl::PointCloud<PointT>::Ptr pclCloud, const pcl::PointCloud<PointT>::Ptr cloud_ground, const pcl::PointCloud<PointT>::Ptr cloud_offground)
-	{
-		auto time_start = std::clock();
-		csf::PointCloud csfCloud;
-		std::vector<int> groundIndexes, offGroundIndexes;
-		pcl2csf(*pclCloud, csfCloud);
-		// 定义一个 CSF 类型的变量 csf
-		CSF csf;
-		// 从文件中读取点云数据并存储到 csf 对象中
-		csf.setPointCloud(csfCloud);
-		// 设置 csf 对象的参数
-		csf.params.bSloopSmooth = true;
-		csf.params.class_threshold = 0.5;
-		csf.params.cloth_resolution = 0.5; // 布料网格的分辨率
-		csf.params.interations = 500;
-		csf.params.rigidness = 1; // 布料刚性
-		csf.params.time_step = 0.65;
-		// 调用 csf 对象的 do_filtering 方法进行滤波，并将结果存储到 groundIndexes 和 offGroundIndexes 中
-		csf.do_filtering(groundIndexes, offGroundIndexes);
-		// 将地面点和非地面点分别存储到对应的点云对象中
-		for (const int& i : groundIndexes)
-		{
-			PointT pclPoint;
-			pclPoint.x = csfCloud[i].x;
-			pclPoint.y = csfCloud[i].y; // 将 csf 点云的 z 坐标赋值给 pcl 点云的 y 坐标
-			pclPoint.z = csfCloud[i].z; // 将 csf 点云的 y 坐标取负并赋值给 pcl 点云的 z 坐标
-			cloud_ground->points.push_back(pclPoint);
-		}
-		cloud_ground->width = cloud_ground->size();
-		for (const int& i : offGroundIndexes)
-		{
-			PointT pclPoint;
-			pclPoint.x = csfCloud[i].x;
-			pclPoint.y = csfCloud[i].y; // 将 csf 点云的 z 坐标赋值给 pcl 点云的 y 坐标
-			pclPoint.z = csfCloud[i].z; // 将 csf 点云的 y 坐标取负并赋值给 pcl 点云的 z 坐标
-			cloud_offground->points.push_back(pclPoint);
-		}
-		cloud_offground->width = cloud_offground->size();
-		//pcl::io::savePCDFileBinary("../file/ground.pcd", *cloud_ground);
-		//save2txt("../file/ground.txt", cloud_ground);
-
-		auto time_end = std::clock();
-		std::cerr << "\r\nCSF，耗时：" << std::difftime(time_end, time_start) << "ms" << std::endl;
-	}
 
 	/// <summary>
 	/// 计算立方体群的体积，只打印结果不输出
@@ -786,7 +722,7 @@ namespace FastVolume
 		test_vector_destruction();
 		VolumeResult result;
 		// CSF地面分割（得到挖方的顶面）
-		csf_ground_segmentation(cloud_src, cloud_top, cloud_offground);
+
 
 		normal = normal.normalized(); // 单位化平面法向量
 		calcPlaneCoefficients(point, normal, plane_coefficients); //求平面方程

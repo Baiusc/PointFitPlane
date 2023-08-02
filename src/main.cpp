@@ -1,5 +1,5 @@
-#include "FastVolume.h"
-using namespace FastVolume;
+#include "MyFunc.h"
+using namespace MyFunc;
 std::mutex UpdateMutex;
 pcl::PointCloud<PointT>::Ptr cloud_src(new pcl::PointCloud<PointT>); //输入的隧道点云
 //pcl::visualization::PCLVisualizer viewer("没有PCLVisualizer单开vtk会报错"); // Warning: Link to vtkInteractionStyle for default style selection

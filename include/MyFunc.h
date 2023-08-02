@@ -1,6 +1,4 @@
-#ifndef FVOLUME_H
-#define FVOLUME_H
-
+#pragma once
 #include <string>
 #include <vector>
 #include <array>
@@ -61,9 +59,8 @@
 #include <vtkUnstructuredGrid.h>
 
 #include <omp.h>
-#include "../libs/CSF/src/CSF.h"
 
-namespace FastVolume
+namespace MyFunc
 {
     // 定义点云类型模板
     typedef pcl::PointXYZRGB PointT;
@@ -86,5 +83,5 @@ namespace FastVolume
     VolumeResult getFastVolume(pcl::PointCloud<PointT>::Ptr cloud_src, Eigen::Vector3f normal, PointT point, float leaf_size);
 
 }
-#endif // VOLUME_H
+
 
