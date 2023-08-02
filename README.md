@@ -24,7 +24,7 @@ git clone git@gitee.com/Baiusc/point-fit-plane.git
 ```bash
 [remote "origin"]
 	url = git@github.com:Baiusc/PointFitPlane.git
-	url = git@gitee.com:Baiusc/fit.git
+	url = git@gitee.com:Baiusc/point-fit-plane.git
 	fetch = +refs/heads/*:refs/remotes/origin/*
 [branch "main"]
 	remote = origin

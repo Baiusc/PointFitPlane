@@ -78,9 +78,10 @@ git push -u origin master
 echo "# CMakeProject1" >> README.md
 git init
 git add README.md
-git commit -m "first commit"
+git add .
+git commit -m "提交项目文件，首次提交"
 git branch -M main
-git remote add origin git@github.com:Baiusc/CMakeProject1.git
+git remote add origin git@github.com:Baiusc/PointFitPlane.git
 git push -u origin main
 ```
 # 8、git同步提交

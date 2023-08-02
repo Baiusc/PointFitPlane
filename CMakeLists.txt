@@ -49,23 +49,25 @@ if(PCL_FOUND)
     message("!!!!!!!!PCL_ROOT:" ${PCL_ROOT})
 	message("!!!!!!!!PCL_INCLUDE_DIRS:" ${PCL_INCLUDE_DIRS})
 	message("!!!!!!!!PCL_LIBRARY_DIRS:" ${PCL_LIBRARY_DIRS})
-    message("!!!!!!!!boost_Lib:" ${boost_Lib})
-    message("VTK_USE_FILE: " ${VTK_USE_FILE})
     # 将PCL头文件目录添加到编译器的搜索路径中
     include_directories( ${PCL_INCLUDE_DIRS} )
     # 将PCL库目录添加到链接器的搜索路径
     link_directories(${PCL_LIBRARY_DIRS})
     # 将PCL宏定义添加到链接器的搜索路径
     add_definitions(${PCL_DEFINITIONS})
+    # 包含VTK的使用文件
+    include(${VTK_USE_FILE})
 else()
     message(FATAL_ERROR "!!!!!!!!PCL not found. Please specify the PCL installation path manually.")
 endif()
 ### ----------------寻找VTK库------------------
 find_package(VTK)
 if(VTK_FOUND)
-    message("VTK found at: ${VTK_DIR}")
-    # 包含VTK的使用文件
-    include(${VTK_USE_FILE})
+    message("VTK_DIR: " ${VTK_DIR})
+    message("VTK_USE_FILE: " ${VTK_USE_FILE})
+    # message("VTK_INCLUDE_FILE: " ${VTK_INCLUDE_FILE})
+    # message("VTK_LIBRARIES_DIRS: " ${VTK_LIBRARIES_DIRS})
+
 else()
     message(FATAL_ERROR "!!!!!!!!VTK not found. Please specify the VTK installation path manually.")
 endif()
@@ -83,6 +85,7 @@ target_link_libraries(
     PUBLIC
         ${PCL_LIBRARIES}
         ${VTK_LIBRARIES}
+        ${CMAKE_THREAD_LIBS_INIT}
 )
 # 使用调试库
 target_compile_options(PointFitPlane PUBLIC $<$<CONFIG:DEBUG>:/MDd>)
