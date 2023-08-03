@@ -13,8 +13,8 @@ void readPcd(const std::string& filename, pcl::PointCloud<PointT>::Ptr& cloud)
 	pcl::PCDReader reader;
 	reader.read(filename, *cloud);
 	std::cout << "cloud_src has: " << cloud->points.size() << " data points." << std::endl;
-}
 
+}
 /// <summary>
 /// 保存点云为txt
 /// </summary>
@@ -274,10 +274,11 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 	seg.setMethodType(pcl::SAC_RANSAC);
 
 	// 设置距离阈值
-	seg.setDistanceThreshold(0.01);
+	seg.setDistanceThreshold(0.1);
 
 	// 深复制一份cloud
 	pcl::PointCloud<PointT>::Ptr cloud_copy(new pcl::PointCloud<PointT>(*cloud));
+	pcl::PointCloud<PointT>::Ptr cloud_draw(new pcl::PointCloud<PointT>(*cloud));
 
 	// 设置输入点云
 	seg.setInputCloud(cloud_copy);
@@ -318,14 +319,17 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 			// 选中点在分割出的平面上
 			// 将分割出的平面颜色改为红色
 			for (size_t i = 0; i < plane->points.size(); ++i) {
-				plane->points[i].r = 255;
-				plane->points[i].g = 0;
+				
+				plane->points[i].r = 0;
+				plane->points[i].g = 255;
 				plane->points[i].b = 0;
 			}
 			// 将分割出的平面添加回原始点云中
-			*cloud += *plane;
+			*cloud_draw += *plane;
 			std::cout << "找到了点所在的平面！" << std::endl;
-
+			// 在查看器中更新点云
+			std::string cloud_id = "cloud" + std::to_string(1); // 将1替换为适当的视口编号
+			viewer.updatePointCloud(cloud_draw, cloud_id);
 			break;
 		}
 
@@ -357,9 +361,22 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	int idx = event.getPointIndex(); 	// 获取选中点的索引
 	// 在终端输出选中点的坐标
 	std::cout << "选点：x=" << x << ", y=" << y << ", z=" << z << ", idx=" << idx << std::endl;
+
+	// 重绘选中的点
+	pcl::PointCloud<PointT>::Ptr selected_point_cloud(new pcl::PointCloud<PointT>);
+	selected_point_cloud->push_back(selected_point);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> red_color(selected_point_cloud, 255, 0, 0);
+	// 检查"selected_point"是否已存在，若已存在，则先从viewer 中remove "selected_point"
+	if (viewer.contains("selected_point")) {
+		viewer.removePointCloud("selected_point", 1);
+	}
+	viewer.addPointCloud(selected_point_cloud, red_color, "selected_point",1);
+	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 30, "selected_point");
 	// 选点拟合平面
 	segmentCloud(cloud_input, idx);
 }
+
+
 // 初始化viewer
 void initViewer(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, PointT selected_point)
 {
@@ -371,7 +388,7 @@ void initViewer(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<Point
 	viewer.registerPointPickingCallback(pointPickingCallback, (void*)&viewer);
 }
 // 添加viewport (从1开始)
-void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, int count = 1, double r = 0.0, double g = 0.0, double b = 0.0)
+void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, int count = 1, double r = 6.0/255.0, double g = 60.0/255.0, double b = 90.0/255.0)
 {
 	double x_min = (viewport - 1) * (1.0 / count);
 	double x_max = viewport * (1.0 / count);
@@ -421,7 +438,7 @@ int main(int argc, char** argv)
 {
 	PointT selected_point; 	//输入：一个三维点 
 
-	readPcd("../cloud/table.pcd", cloud_input); // 输入：隧道点云
+	readPcd("../cloud/office_wall.pcd", cloud_input); // 输入：隧道点云
 	//segmentCloud(cloud_input, point);
 
 	// PCL处理过程可视化
@@ -432,7 +449,7 @@ int main(int argc, char** argv)
 	  addViewport(viewer, 3);
 	  addViewport(viewer, 4);*/
 
-	addCloud(viewer, cloud_input, 1);
+	addCloud(viewer, cloud_input, 1,"z");
 
 
 
