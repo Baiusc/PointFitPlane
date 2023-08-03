@@ -79,8 +79,12 @@ namespace MyFunc
     };
     // 读pcd点云文件
     void readPcd(const std::string& filename, pcl::PointCloud<PointT>::Ptr& cloud);
-    // 快速体积计算
-    VolumeResult getFastVolume(pcl::PointCloud<PointT>::Ptr cloud_src, Eigen::Vector3f normal, PointT point, float leaf_size);
+    void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, void* viewer_void);
+    void initViewer(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, PointT selected_point);
+    void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport = 1, double r = 0.0, double g = 0.0, double b = 0.0);
+    void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, int viewport);
+    void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, float hue, int viewport);
+   
 
 }
 

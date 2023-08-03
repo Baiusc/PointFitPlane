@@ -1,23 +1,6 @@
 #include "MyFunc.h"
 namespace MyFunc
 {
-	__declspec(dllexport)
-	// 定义全局变量来存储当前选中的点的坐标
-	PointT selected_point;
-	// 定义点云类型模板
-	//typedef pcl::PointXYZRGB PointT;
-	pcl::PointCloud<PointT>::Ptr cloud_src(new pcl::PointCloud<PointT>); //原点云
-	pcl::ModelCoefficients::Ptr plane_coefficients(new pcl::ModelCoefficients); //点法确定挖方底平面系数
-	pcl::PointCloud<PointT>::Ptr cloud_offground(new pcl::PointCloud<PointT>); //非地面
-	pcl::PointCloud<PointT>::Ptr cloud_top(new pcl::PointCloud<PointT>); //挖方顶面点云 （隧道地面）
-	pcl::PointCloud<PointT>::Ptr top_rotated(new pcl::PointCloud<PointT>); // 旋转后的顶面
-	pcl::PointCloud<PointT>::Ptr top_rotated_voxel(new pcl::PointCloud<PointT>); //旋转后体素化的顶面
-	pcl::PointCloud<PointT>::Ptr top_rotated_repair(new pcl::PointCloud<PointT>); //旋转后修补的顶面
-	pcl::PointCloud<PointT>::Ptr top_real_repair(new pcl::PointCloud<PointT>); //真实的修补顶面
-	pcl::PointCloud<PointT>::Ptr bottom_rotated_repair(new pcl::PointCloud<PointT>); //旋转后修补的底面
-	pcl::ModelCoefficients::Ptr rotated_plane_coefficients(new pcl::ModelCoefficients); //点法确定挖方底平面系数
-	pcl::PointCloud<PointT>::Ptr bottom_real_repair(new pcl::PointCloud<PointT>); //真实的修补底面
-
 #pragma region 读写操作和格式转换
 	// 读pcd
 	void readPcd(const std::string& filename, pcl::PointCloud<PointT>::Ptr& cloud)
@@ -225,246 +208,6 @@ namespace MyFunc
 	}
 #pragma endregion
 
-#pragma region 详细步骤方法
-
-
-	/// <summary>
-	/// 计算立方体群的体积，只打印结果不输出
-	/// </summary>
-	/// <param name="grid_bottom">底面</param>
-	/// <param name="grid_top">顶面</param>
-	/// <param name="plane_coefficients">底面方程系数</param>
-	/// <param name="leaf_size">分辨率</param>
-	void calcCubeClusterVolume(const pcl::PointCloud<PointT>::Ptr& grid_bottom,
-		const pcl::PointCloud<PointT>::Ptr& grid_top,
-		pcl::ModelCoefficients::Ptr plane_coefficients,
-		float leaf_size,
-		VolumeResult result)
-	{
-		auto time_start = std::clock();
-
-		float height_sum = 0.0;
-		float positive_height_sum = 0.0;
-		float negative_height_sum = 0.0;
-		float positive_point_count = 0.0;
-		float negative_point_count = 0.0;
-		int total_point_count = grid_bottom->size();
-
-		// 计算高度差累积和区分正方向和负方向的高度差累积
-		for (size_t i = 0; i < total_point_count; ++i) {
-			const PointT& point_top = grid_top->at(i);
-			const PointT& point_bottom = grid_bottom->at(i);
-			float height = calcPointToPlaneDistance(point_top, plane_coefficients);
-			height_sum += std::abs(height);
-			if (height > 0)
-			{
-				positive_height_sum += height;
-				positive_point_count++;
-			}
-			else
-			{
-				negative_height_sum += height;
-				negative_point_count++;
-			}
-		}
-		result.positive_volume = leaf_size * leaf_size * positive_height_sum; //挖方的体积
-		result.negative_volume = leaf_size * leaf_size * std::abs(negative_height_sum); //填方的体积
-		result.total_volume = result.positive_volume + result.negative_volume; //挖方加上填方的体积
-		result.diff_volume = result.positive_volume - result.negative_volume; //挖方减去填方的体积
-		result.positive_area = leaf_size * leaf_size * positive_point_count; //平面面积（正部分）
-		result.negative_area = leaf_size * leaf_size * negative_point_count; //平面面积（负部分）
-		result.total_area = leaf_size * leaf_size * total_point_count; //平面面积（全部）
-		// 打印
-		auto time_end = std::clock();
-		std::cerr << "计算体积，耗时：" << std::difftime(time_end, time_start) << "ms" << std::endl;
-		std::cout << "\r\n挖方与填方" << std::endl;;
-		std::cout << "正的体积[挖方]：" << result.positive_volume << std::endl;
-		std::cout << "负的体积[填方]：" << result.negative_volume << std::endl;
-		std::cout << "挖方减去填方：" << result.diff_volume << std::endl;
-		std::cout << "挖方加上填方：" << result.total_volume << std::endl;
-		std::cout << "\r\n面积" << std::endl;;
-		std::cout << "平面面积（正部分）：" << result.positive_area << std::endl;
-		std::cout << "平面面积（负部分）：" << result.negative_area << std::endl;
-		std::cout << "全部的平面面积：" << result.total_area << std::endl;
-
-
-	}
-
-	/// <summary>
-	/// 先化为二维点云。然后对每一个Y坐标，取Xmin和Xmax，在其间按leaf_size进行插X值修补
-	/// </summary>
-	/// <param name="cloud">输入点云</param>
-	/// <param name="leaf_size">分辨率</param>
-	/// <param name="cloud_x">输出：插X值修补后的二维点云</param>
-	void repairX_2d(const pcl::PointCloud<pcl::PointXY>::Ptr& cloud,
-		float leaf_size,
-		pcl::PointCloud<pcl::PointXY>::Ptr& cloud_x)
-	{
-		// 创建点云副本 (避免排序操作影响到本函数外)
-		pcl::PointCloud<pcl::PointXY>::Ptr cloud_2d(new pcl::PointCloud<pcl::PointXY>(*cloud));
-		auto compareYCoordinate = [](const pcl::PointXY& p1, const pcl::PointXY& p2)
-		{
-			return p1.y < p2.y; // 按y坐标从小到大对二维点云进行排序
-		};
-		std::sort(cloud_2d->points.begin(), cloud_2d->points.end(), compareYCoordinate);
-		// for循环内的中间变量
-		float current_y = cloud_2d->points[0].y;
-		float minX = cloud_2d->points[0].x;
-		float maxX = cloud_2d->points[0].x;
-		// 遍历按y排序后的点云
-		for (std::size_t idx = 0; idx < cloud_2d->points.size(); ++idx)
-		{
-			const pcl::PointXY& point = cloud_2d->points[idx];
-			// 当y坐标发生变化时
-			if (!(std::abs(point.y - current_y) < 0.00001))
-			{
-				// 根据leaf_size、minX、maxX，取等间距补点
-				float interval = leaf_size;
-				for (float x = minX; x < maxX; x += interval) {
-					pcl::PointXY point_add;
-					point_add.x = x;  // x按interval等间距插值修补
-					point_add.y = current_y; // y等于当前列的y值
-					cloud_x->points.push_back(point_add);
-				}
-				current_y = point.y;
-				minX = point.x;
-				maxX = point.x;
-			}
-			// 若y坐标没发生变化
-			minX = std::min(minX, point.x); // 更新最值
-			maxX = std::max(maxX, point.x);
-			// 如果是最后一个y坐标
-			if (idx == cloud_2d->points.size() - 1)
-			{
-				// 对最后一个y坐标进行补点
-				float interval = leaf_size;
-				for (float x = minX; x < maxX; x += interval) {
-					pcl::PointXY point_add;
-					point_add.x = x;  // x按interval等间距插值修补
-					point_add.y = current_y; // y等于当前列的y值
-					cloud_x->points.push_back(point_add);
-				}
-			}
-		}
-	}
-	// 在二维中修补Y
-	void repairY_2d(const pcl::PointCloud<pcl::PointXY>::Ptr& cloud,
-		float leaf_size,
-		pcl::PointCloud<pcl::PointXY>::Ptr& cloud_y)
-	{
-		// 创建点云副本 (避免排序操作影响到本函数外)
-		pcl::PointCloud<pcl::PointXY>::Ptr cloud_2d(new pcl::PointCloud<pcl::PointXY>(*cloud));
-		// 按x坐标从小到大对二维点云进行排序
-		auto compareXCoordinate = [](const pcl::PointXY& p1, const pcl::PointXY& p2)
-		{
-			return p1.x < p2.x;
-		};
-		std::sort(cloud_2d->points.begin(), cloud_2d->points.end(), compareXCoordinate);
-		// for循环内的中间变量
-		float current_x = cloud_2d->points[0].x;
-		float minY = cloud_2d->points[0].y;
-		float maxY = cloud_2d->points[0].y;
-		// 遍历按x排序后的点云
-		for (std::size_t idx = 0; idx < cloud_2d->points.size(); ++idx)
-		{
-			const pcl::PointXY& point = cloud_2d->points[idx];
-			// 当x坐标发生变化时
-			if (!(std::abs(point.x - current_x) < 0.00001))
-			{
-				// 根据leaf_size、minY、maxY，取等间距补点
-				float interval = leaf_size;
-				for (float y = minY; y < maxY; y += interval) {
-					pcl::PointXY point_add;
-					point_add.x = current_x;  // x等于当前行的x值
-					point_add.y = y; // y按interval等间距插值修补
-					cloud_y->points.push_back(point_add);
-				}
-				current_x = point.x;
-				minY = point.y;
-				maxY = point.y;
-			}
-			// 若x坐标没发生变化
-			minY = std::min(minY, point.y); // 更新最值
-			maxY = std::max(maxY, point.y);
-			// 如果是最后一个x坐标
-			if (idx == cloud_2d->points.size() - 1)
-			{
-				// 对最后一个x坐标进行补点
-				float interval = leaf_size;
-				for (float y = minY; y < maxY; y += interval) {
-					pcl::PointXY point_add;
-					point_add.x = current_x;  // x等于当前行的x值
-					point_add.y = y; // y按interval等间距插值修补
-					cloud_y->points.push_back(point_add);
-				}
-			}
-		}
-	}
-
-
-	// 对每个点，已知修补后的xy，生成并修补z坐标
-	void repairZ(const pcl::PointCloud<pcl::PointXY>::Ptr& repair_xy,
-		const pcl::PointCloud<PointT>::Ptr& voxel_top,
-		const pcl::PointCloud<pcl::PointXY>::Ptr& voxel_top_2d,
-		float leaf_size,
-		pcl::PointCloud<PointT>::Ptr& cloud_xyz)
-	{
-		auto time_start = std::clock();
-		pcl::search::KdTree<pcl::PointXY>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXY>);
-		kdtree->setInputCloud(voxel_top_2d); // 设置输入点云数据
-		float search_radius = leaf_size / 2; // 设置rs搜索半径
-		int k = 1; // 设置nk搜索点数
-		std::vector<int> rs_indices; // 用于存储最近邻点的索引
-		std::vector<int> nk_indices(k); // 用于存储最近邻点的索引
-		std::vector<float> rs_distances; // 用于存储最近邻点距离的向量
-		std::vector<float> nk_distances(k); // 用于存储最近邻点距离的向量
-
-		for (size_t i = 0; i < repair_xy->size(); ++i) {
-			const auto& point = (*repair_xy)[i]; // xy值修补后的二维点
-
-			PointT pt_repair; // z值修补后的三维点
-			kdtree->nearestKSearch(point, k, nk_indices, nk_distances);
-			pt_repair.x = point.x;
-			pt_repair.y = point.y;
-			pt_repair.z = voxel_top->points[nk_indices[0]].z;
-			cloud_xyz->push_back(pt_repair);
-		}
-
-		auto end1 = std::clock();
-		std::cout << "顶面修补z，耗时，耗时：" << std::difftime(end1, time_start) << "ms" << std::endl;
-	}
-
-	// 修补挖方
-	void repairTop(const pcl::PointCloud<PointT>::Ptr& voxel_top,
-		float leaf_size,
-		pcl::PointCloud<PointT>::Ptr& top_repairXYZ)
-	{
-		// new二维点云
-		pcl::PointCloud<pcl::PointXY>::Ptr top_repairX(new pcl::PointCloud<pcl::PointXY>);
-		pcl::PointCloud<pcl::PointXY>::Ptr top_repairY(new pcl::PointCloud<pcl::PointXY>);
-		pcl::PointCloud<pcl::PointXY>::Ptr top_repairXY(new pcl::PointCloud<pcl::PointXY>);
-		pcl::PointCloud<pcl::PointXY>::Ptr voxel_top_2d(new pcl::PointCloud<pcl::PointXY>);
-		// 将点云的每个点的 XY 坐标提取到二维点云中
-		voxel_top_2d->points.resize(voxel_top->size());
-		voxel_top_2d->width = voxel_top->size();
-		voxel_top_2d->height = 1;
-		voxel_top_2d->is_dense = true;
-		for (size_t i = 0; i < voxel_top->size(); ++i) {
-			voxel_top_2d->points[i].x = voxel_top->points[i].x;
-			voxel_top_2d->points[i].y = voxel_top->points[i].y;
-		}
-		repairX_2d(voxel_top_2d, leaf_size, top_repairX);
-		repairY_2d(voxel_top_2d, leaf_size, top_repairY);
-
-		// 取交集 4s
-		getIntersection_2d(top_repairX, top_repairY, top_repairXY);
-
-		// 顶面修补 6s
-		repairZ(top_repairXY, voxel_top, voxel_top_2d, leaf_size, top_repairXYZ);
-	}
-
-#pragma endregion
-
 #pragma region PCL可视化
 
 	// 鼠标单击事件回调函数
@@ -477,6 +220,7 @@ namespace MyFunc
 		// 获取选中点的坐标
 		float x, y, z;
 		event.getPoint(x, y, z);
+		PointT selected_point;
 		selected_point.x = x;
 		selected_point.y = y;
 		selected_point.z = z;
@@ -485,7 +229,7 @@ namespace MyFunc
 		std::cout << "选点坐标：x=" << x << ", y=" << y << ", z=" << z << std::endl;
 	}
 	// 初始化viewer
-	void initViewer(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud)
+	void initViewer(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, PointT selected_point)
 	{
 		viewer.initCameraParameters();
 		viewer.setBackgroundColor(0, 0, 0);
@@ -495,7 +239,7 @@ namespace MyFunc
 		viewer.registerPointPickingCallback(pointPickingCallback, (void*)&viewer);
 	}
 	// 添加viewport (从1开始)
-	void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport = 1, double r = 0.0, double g = 0.0, double b = 0.0)
+	void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, double r , double g , double b )
 	{
 		viewer.createViewPort((viewport - 1) * 0.25, 0.0, viewport * 0.25, 1.0, viewport); // 这种写法只能保证4个视口不重叠排列
 		viewer.setBackgroundColor(r, g, b, viewport);
@@ -703,81 +447,6 @@ namespace MyFunc
 
 
 #pragma endregion
-	void test_vector_destruction() {
-		std::cout << "Testing destruction of std::vector<PointT, Eigen::aligned_allocator<PointT>>" << std::endl;
-		{
-			std::vector<PointT, Eigen::aligned_allocator<PointT>> vector1(10);
-		}
-		std::cout << "std::vector<PointT, Eigen::aligned_allocator<PointT>> destroyed" << std::endl;
-
-		std::cout << "Testing destruction of std::vector<int>" << std::endl;
-		{
-			std::vector<int> vector2(20);
-		}
-		std::cout << "std::vector<int> destroyed" << std::endl;
-	}
-	// 快速挖方体积计算入口
-	VolumeResult getFastVolume(pcl::PointCloud<PointT>::Ptr cloud_src, Eigen::Vector3f normal, PointT point, float leaf_size)
-	{
-		test_vector_destruction();
-		VolumeResult result;
-		// CSF地面分割（得到挖方的顶面）
-
-
-		normal = normal.normalized(); // 单位化平面法向量
-		calcPlaneCoefficients(point, normal, plane_coefficients); //求平面方程
-
-		// 旋转点云
-		Eigen::Vector3f normal_planeXY(0.0f, 0.0f, 1.0f); // 旋转后的平面法向
-		Eigen::Matrix4f rotation = getRotationMatrix(normal, normal_planeXY); // 求旋转矩阵
-		auto inv_rotation = rotation.transpose(); // 得逆旋转矩阵
-		pcl::transformPointCloud(*cloud_top, *top_rotated, rotation); // 旋转顶面
-
-		// 挖方顶面octree体素化
-		getVoxelCenters(top_rotated, leaf_size, top_rotated_voxel);
-
-		// 修补
-		repairTop(top_rotated_voxel, leaf_size, top_rotated_repair);
-
-		// 逆旋转生成真实的顶面
-		pcl::transformPointCloud(*top_rotated_repair, *top_real_repair, inv_rotation);
-		// 投影还原真实底面
-		projectPointCloudToPlane(top_real_repair, plane_coefficients, bottom_real_repair);
-		// 旋转生成转正的底面
-		pcl::transformPointCloud(*bottom_real_repair, *bottom_rotated_repair, rotation);
-		//求转正的底面的平面方程
-		calcPlaneCoefficients(bottom_rotated_repair->points[0], normal_planeXY, rotated_plane_coefficients); 
-		// 计算体积  (用真实的点)
-		//calcCubeClusterVolume(bottom_real_repair, top_real_repair, plane_coefficients, leaf_size);
-		// 计算体积  (用转正后的点)
-		calcCubeClusterVolume(bottom_rotated_repair, top_rotated_repair, rotated_plane_coefficients, leaf_size, result);
-
-		// PCL处理过程可视化
-		pcl::visualization::PCLVisualizer viewer("MutiViewer");
-		initViewer(viewer, cloud_top);
-		addViewport(viewer, 1);
-		addViewport(viewer, 2);
-		addViewport(viewer, 3);
-		addViewport(viewer, 4);
-
-		addCloud(viewer, cloud_top, 0.1, 1);
-		addCloud(viewer, cloud_offground, 0.6, 1);
-
-		addCloud(viewer, top_rotated_voxel, 0.4, 2);
-
-		addCloud(viewer, top_rotated_repair, 0.2, 3);
-		addCloud(viewer, bottom_rotated_repair, 0.7, 3);
-
-		addCloud(viewer, top_real_repair, 0.3, 4);
-		addCloud(viewer, bottom_real_repair, 0.8, 4);
-
-		viewer.spinOnce();
-		createCubes(top_rotated_repair, bottom_rotated_repair, rotated_plane_coefficients, inv_rotation, leaf_size * 0.9); // 创建立方体群 7.8s
-
-
-
-		return result;
-	}
 
 }
 
