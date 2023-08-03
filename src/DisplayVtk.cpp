@@ -1,4 +1,4 @@
-
+#pragma once
 #include <vtkActor.h>
 #include <vtkCamera.h>
 #include <vtkRenderer.h>
