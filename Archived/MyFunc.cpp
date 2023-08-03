@@ -239,11 +239,14 @@ namespace MyFunc
 		viewer.registerPointPickingCallback(pointPickingCallback, (void*)&viewer);
 	}
 	// 添加viewport (从1开始)
-	void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, double r , double g , double b )
+	void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, int count, double r , double g , double b )
 	{
-		viewer.createViewPort((viewport - 1) * 0.25, 0.0, viewport * 0.25, 1.0, viewport); // 这种写法只能保证4个视口不重叠排列
+		double x_min = (viewport - 1) * (1.0 / count);
+		double x_max = viewport * (1.0 / count);
+		viewer.createViewPort(x_min, 0.0, x_max, 1.0, viewport);
+		//viewer.createViewPort((viewport - 1) * 0.25, 0.0, viewport * 0.25, 1.0, viewport); // 这种写法只能保证4个视口不重叠排列
 		viewer.setBackgroundColor(r, g, b, viewport);
-		viewer.addCoordinateSystem(10, "coordinate", viewport);
+		viewer.addCoordinateSystem(3, "coordinate", viewport);
 		std::string x_label = "x_label_v" + std::to_string(viewport);
 		std::string y_label = "y_label_v" + std::to_string(viewport);
 		std::string z_label = "z_label_v" + std::to_string(viewport);
@@ -254,9 +257,9 @@ namespace MyFunc
 		viewer.addText("viewport " + std::to_string(viewport), 10, 10, std::to_string(viewport), viewport);
 	}
 	// 添加点云 Z值着色
-	void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, int viewport)
+	void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, int viewport,std::string axis)
 	{
-		pcl::visualization::PointCloudColorHandlerGenericField<PointT> color_handler(cloud, "z"); // 按Z轴值着色
+		pcl::visualization::PointCloudColorHandlerGenericField<PointT> color_handler(cloud, axis); // 按Z轴值着色
 		std::string cloud_id = "cloud" + std::to_string(viewport);
 		viewer.addPointCloud(cloud, color_handler, cloud_id, viewport);
 	}
@@ -271,6 +274,14 @@ namespace MyFunc
 		viewer.addPointCloud(cloud, color, cloud_id, viewport);
 		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, cloud_id);
 	}
+	// Add point cloud without changing its color
+	void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, int viewport)
+	{
+		std::string cloud_id = "cloud" + std::to_string(viewport);
+		viewer.addPointCloud(cloud, cloud_id, viewport);
+		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, cloud_id);
+	}
+
 #pragma endregion
 
 #pragma region VTK可视化

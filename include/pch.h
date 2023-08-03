@@ -1,4 +1,13 @@
-#pragma once
+ï»¿// pch.h: è¿™æ˜¯é¢„ç¼–è¯‘æ ‡å¤´æ–‡ä»¶ã€‚
+// ä¸‹æ–¹åˆ—å‡ºçš„æ–‡ä»¶ä»…ç¼–è¯‘ä¸€æ¬¡ï¼Œæé«˜äº†å°†æ¥ç”Ÿæˆçš„ç”Ÿæˆæ€§èƒ½ã€‚
+// è¿™è¿˜å°†å½±å“ IntelliSense æ€§èƒ½ï¼ŒåŒ…æ‹¬ä»£ç å®Œæˆå’Œè®¸å¤šä»£ç æµè§ˆåŠŸèƒ½ã€‚
+// ä½†æ˜¯ï¼Œå¦‚æœæ­¤å¤„åˆ—å‡ºçš„æ–‡ä»¶ä¸­çš„ä»»ä½•ä¸€ä¸ªåœ¨ç”Ÿæˆä¹‹é—´æœ‰æ›´æ–°ï¼Œå®ƒä»¬å…¨éƒ¨éƒ½å°†è¢«é‡æ–°ç¼–è¯‘ã€‚
+// è¯·å‹¿åœ¨æ­¤å¤„æ·»åŠ è¦é¢‘ç¹æ›´æ–°çš„æ–‡ä»¶ï¼Œè¿™å°†ä½¿å¾—æ€§èƒ½ä¼˜åŠ¿æ— æ•ˆã€‚
+
+#ifndef PCH_H
+#define PCH_H
+
+// æ·»åŠ è¦åœ¨æ­¤å¤„é¢„ç¼–è¯‘çš„æ ‡å¤´
 #include <string>
 #include <vector>
 #include <array>
@@ -59,33 +68,4 @@
 #include <vtkUnstructuredGrid.h>
 
 #include <omp.h>
-
-namespace MyFunc
-{
-    // ¶¨ÒåµãÔÆÀàĞÍÄ£°å
-    typedef pcl::PointXYZRGB PointT;
-    // Ìå»ı¼ÆËã½á¹û
-    struct VolumeResult {
-        float positive_volume; // ÕıµÄÌå»ı[ÍÚ·½]
-        float negative_volume; // ¸ºµÄÌå»ı[Ìî·½]
-        float total_volume; // ÍÚ·½¼ÓÉÏÌî·½
-        float diff_volume; // ÍÚ·½¼õÈ¥Ìî·½
-        float positive_area; // Æ½ÃæÃæ»ı£¨Õı²¿·Ö£©
-        float negative_area; // Æ½ÃæÃæ»ı£¨¸º²¿·Ö£©
-        float total_area; // È«²¿µÄÆ½ÃæÃæ»ı
-        vtkSmartPointer<vtkPolyData> polyData; // ¶à±ßĞÎÊı¾İ
-        pcl::PointCloud<PointT>::Ptr grid_top; // ÍÚ·½¶¥ÃæÍø¸ñµãÔÆ (Á¢·¨ÌåµÄ¶¥ÃæÖĞĞÄµã)
-        pcl::PointCloud<PointT>::Ptr grid_bottom; // ÍÚ·½¶¥ÃæÍø¸ñµãÔÆ (Á¢·¨ÌåµÄµ×ÃæÖĞĞÄµã)
-    };
-    // ¶ÁpcdµãÔÆÎÄ¼ş
-    void readPcd(const std::string& filename, pcl::PointCloud<PointT>::Ptr& cloud);
-    void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, void* viewer_void);
-    void initViewer(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, PointT selected_point);
-    void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport = 1, double r = 0.0, double g = 0.0, double b = 0.0);
-    void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, int viewport);
-    void addCloud(pcl::visualization::PCLVisualizer& viewer, pcl::PointCloud<PointT>::Ptr& cloud, float hue, int viewport);
-   
-
-}
-
-
+#endif //PCH_H
