@@ -67,6 +67,7 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 #pragma endregion
 
 #pragma region 通用点云算法
+
 // 点云投影
 void projectPointCloudToPlane(pcl::PointCloud<PointT>::Ptr& cloud, pcl::ModelCoefficients::Ptr& plane_coefficients, pcl::PointCloud<PointT>::Ptr& cloud_projected)
 {
@@ -288,7 +289,7 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 
 	// 迭代分割
-	while (cloud_copy->points.size() > 0.3 * cloud->points.size()) {
+	while (cloud_copy->points.size() > 0.001 * cloud->points.size()) {
 		// 调用segment方法进行分割
 		seg.segment(*inliers, *coefficients);
 
@@ -308,18 +309,15 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 		extract.setNegative(false);
 		extract.filter(*plane);
 
-		// 计算平面的包围盒
-		Eigen::Vector4f min_pt, max_pt;
-		pcl::getMinMax3D(*plane, min_pt, max_pt);
+		// 计算选中点到平面的距离
+		float distance = calcPointToPlaneDistance(cloud->points[selected_point_index], coefficients);
 
 		// 检查选中点是否在分割出的平面上
-		if (cloud->points[selected_point_index].x >= min_pt[0] && cloud->points[selected_point_index].x <= max_pt[0] &&
-			cloud->points[selected_point_index].y >= min_pt[1] && cloud->points[selected_point_index].y <= max_pt[1] &&
-			cloud->points[selected_point_index].z >= min_pt[2] && cloud->points[selected_point_index].z <= max_pt[2]) {
+		if (std::abs(distance) < 0.01) { // 将0.01替换为您想要使用的阈值
 			// 选中点在分割出的平面上
 			// 将分割出的平面颜色改为红色
 			for (size_t i = 0; i < plane->points.size(); ++i) {
-				
+
 				plane->points[i].r = 0;
 				plane->points[i].g = 255;
 				plane->points[i].b = 0;
