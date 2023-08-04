@@ -338,6 +338,72 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 	std::cout << "while循环结束！" << std::endl;
 }
 
+#include <iostream>
+#include <vector>
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/search/search.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/filters/filter_indices.h> // for pcl::removeNaNFromPointCloud
+#include <pcl/segmentation/region_growing.h>
+
+
+
+void regionGrowingSegmentation(pcl::PointCloud<PointT>::Ptr cloud, std::vector<pcl::PointIndices>& clusters)
+{
+	// 建立搜索KD树
+	pcl::search::Search<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
+	// 计算点云法向
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+	pcl::NormalEstimation<PointT, pcl::Normal> normal_estimator;
+	normal_estimator.setSearchMethod(tree); // 搜索方法为kd树走索
+	normal_estimator.setInputCloud(cloud);  // 填入点云
+	normal_estimator.setKSearch(50);        // 设置搜索范围
+	normal_estimator.compute(*normals);     // 将法相保存在normals
+	pcl::IndicesPtr indices(new std::vector<int>);
+	pcl::removeNaNFromPointCloud(*cloud, *indices); // 对点云建立索引
+
+	pcl::RegionGrowing<PointT, pcl::Normal> reg; // 区域增长类
+	reg.setMinClusterSize(50);                   // 设置最小的集合点数
+	reg.setMaxClusterSize(1000000);               // 设置最大集合点数
+	reg.setSearchMethod(tree);                    // 设置kd树搜索方法
+	reg.setNumberOfNeighbours(30);                // 设置每次邻域搜索数(影响计算速度)
+	reg.setInputCloud(cloud);                     // 设置输入点云
+	reg.setIndices(indices);                      // 设置输入的索引
+	reg.setInputNormals(normals);                 // 设置输入法向
+	reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);      // 设置平滑度阈值（弧度）
+	reg.setCurvatureThreshold(1.0);                      // 设置曲率阈值
+
+	// 分类集合 并开始计算
+	reg.extract(clusters);
+
+	// 一系列输出
+	std::cout << "Number of clusters is equal to " << clusters.size() << std::endl;
+	std::cout << "First cluster has " << clusters[0].indices.size() << " points." << std::endl;
+	std::cout << "These are the indices of the points of the initial" <<
+		std::endl << "cloud that belong to the first cluster:" << std::endl;
+	std::size_t counter = 0;
+	while (counter < clusters[0].indices.size())
+	{
+		std::cout << clusters[0].indices[counter] << ", ";
+		counter++;
+		if (counter % 10 == 0)
+			std::cout << std::endl;
+	}
+	std::cout << std::endl;
+	// 显示出分割后的点云，并赋予不同颜色
+	pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud = reg.getColoredCloud();
+	pcl::visualization::CloudViewer viewer("Cluster viewer");
+	viewer.showCloud(colored_cloud);
+	while (!viewer.wasStopped())
+	{
+	}
+
+
+}
+
 
 
 #pragma endregion
@@ -437,6 +503,11 @@ int main(int argc, char** argv)
 	PointT selected_point; 	//输入：一个三维点 
 
 	readPcd("../cloud/office_wall.pcd", cloud_input); // 输入：隧道点云
+
+
+	std::vector<pcl::PointIndices> clusters;
+	// 调用区域增长分割方法
+	regionGrowingSegmentation(cloud_input, clusters);
 	//segmentCloud(cloud_input, point);
 
 	// PCL处理过程可视化
