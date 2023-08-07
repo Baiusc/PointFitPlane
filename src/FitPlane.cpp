@@ -276,19 +276,24 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
 	pcl::SACSegmentation<PointT> seg;
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setMethodType(pcl::SAC_RANSAC);
-
-	// 设置距离阈值为0.01
-	seg.setDistanceThreshold(0.01);
-
+	// 设置距离阈值
+	seg.setDistanceThreshold(0.1);
+	// 设置最大迭代次数
+	//seg.setMaxIterations(100);
+	// 设置概率
+	//seg.setProbability(0.6);
 	// 设置输入点云
 	seg.setInputCloud(cloud);
-
 	// 创建一个模型系数对象和一个内点索引对象
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-
 	// 调用segment方法进行分割
 	seg.segment(*inliers, *coefficients);
+	// 检查是否分割成功
+	if (inliers->indices.size() == 0) {
+		std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
+		return;
+	}
 
 	// 创建一个新的点云来存储分割出的平面
 	pcl::PointCloud<PointT>::Ptr plane(new pcl::PointCloud<PointT>);
@@ -309,16 +314,14 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
 	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
 
 	// 将分割出的平面颜色改为红色
-	for (size_t i = 0; i < plane->points.size(); ++i) {
-		plane->points[i].r = 255;
-		plane->points[i].g = 0;
-		plane->points[i].b = 0;
+	for (size_t i = 0; i < inliers->indices.size(); ++i) {
+		int idx = (*inliers).indices[i];
+		cloud_input->points[idx].r = 0;
+		cloud_input->points[idx].g = 255;
+		cloud_input->points[idx].b = 0;
 	}
-
-	// 将分割出的平面添加回原始点云中
-	*cloud += *plane;
-
-
+	// 更新可视化工具中的点云数据
+	viewer.updatePointCloud(cloud_input, "cloud1");
 }
 // 迭代分割
 void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_index)
@@ -590,7 +593,9 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	viewer.updatePointCloud(cloud_input, "cloud1");
 
 	// 区域拟合平面
-	//segmentCloud_Single(cloud_cylinder);
+	segmentCloud_Single(cloud_cylinder);
+
+
 	//computeSelectedPointNeighborhood(cloud_input, idx);
 }
 
