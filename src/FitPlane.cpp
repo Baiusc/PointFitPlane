@@ -212,15 +212,69 @@ void getIntersection_2d(const pcl::PointCloud<pcl::PointXY>::Ptr& cloud_x,
 	auto end1 = std::clock();
 	std::cerr << "取交集，耗时：" << std::difftime(end1, time_start) << "ms" << std::endl;
 }
+// 以给定点为中心，分割出radius*height的圆柱体，输出圆柱体内的点云
+void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointCloud<PointT>::Ptr cloud_cylinder, PointT selected_point, float radius, float height) {
+	
+	// 创建一个圆柱体对象
+	pcl::ModelCoefficients cylinder_coeff;
+	cylinder_coeff.values.resize(7);
+	cylinder_coeff.values[0] = selected_point.x;
+	cylinder_coeff.values[1] = selected_point.y;
+	cylinder_coeff.values[2] = selected_point.z - height;
+	cylinder_coeff.values[3] = 0;
+	cylinder_coeff.values[4] = 0;
+	cylinder_coeff.values[5] = height;
+	cylinder_coeff.values[6] = radius;
+
+	// 在可视化工具中添加圆柱体
+	viewer.addCylinder(cylinder_coeff, "cylinder", 1);
+
+	// 设置圆柱体的颜色和透明度
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cylinder", 0);
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "cylinder", 0);
+
+	// 遍历输入点云中的每个点
+	for (const auto& point : cloud_input->points) {
+		// 计算点到圆心的距离
+		float distance = std::sqrt(std::pow(point.x - selected_point.x, 2) + std::pow(point.y - selected_point.y, 2));
+		// 检查点是否在圆柱体内
+		if (distance <= radius && point.z >= selected_point.z - height && point.z <= selected_point.z + height) {
+			// 将点添加到筛选后的点云中
+			cloud_cylinder->push_back(point);
+		}
+	}
+}
+
+// 以给定点为中心，分割出radius*height的圆柱体，输出圆柱体内的点云 (输出区域点云和索引数组)
+void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointCloud<PointT>::Ptr cloud_cylinder, pcl::IndicesPtr indices, PointT selected_point, float radius, float height) {
+	
+	// 遍历输入点云中的每个点
+	for (size_t i = 0; i < cloud_input->points.size(); ++i) {
+		const auto& point = cloud_input->points[i];
+		// 计算点到圆心的距离
+		float distance = std::sqrt(std::pow(point.x - selected_point.x, 2) + std::pow(point.y - selected_point.y, 2));
+		// 检查点是否在圆柱体内
+		if (distance <= radius && point.z >= selected_point.z - height/2.0f && point.z <= selected_point.z + height/2.0f) {
+			// 将点的索引添加到筛选后的索引数组中
+			indices->push_back(i);
+			// 将点添加到筛选后的点云中
+			cloud_cylinder->push_back(point);
+		}
+	}
+}
+
+
+
+
 #pragma endregion
 
 #pragma region 详细步骤方法
 // 单次分割
 void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
 
-	// 创建一个SACSegmentation对象，并设置模型类型为平面，方法类型为RANSAC
+	// 创建一个SACSegmentation对象，方法类型为RANSAC，并设置模型类型为圆柱
 	pcl::SACSegmentation<PointT> seg;
-	seg.setModelType(pcl::SACMODEL_PLANE);
+	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setMethodType(pcl::SAC_RANSAC);
 
 	// 设置距离阈值为0.01
@@ -236,14 +290,6 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
 	// 调用segment方法进行分割
 	seg.segment(*inliers, *coefficients);
 
-	// 输出分割结果
-	std::cout << "模型系数: " << coefficients->values[0] << " "
-		<< coefficients->values[1] << " "
-		<< coefficients->values[2] << " "
-		<< coefficients->values[3] << std::endl;
-
-	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
-
 	// 创建一个新的点云来存储分割出的平面
 	pcl::PointCloud<PointT>::Ptr plane(new pcl::PointCloud<PointT>);
 
@@ -253,6 +299,14 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
 	extract.setIndices(inliers);
 	extract.setNegative(false);
 	extract.filter(*plane);
+
+	// 输出分割结果
+	std::cout << "模型系数: " << coefficients->values[0] << " "
+		<< coefficients->values[1] << " "
+		<< coefficients->values[2] << " "
+		<< coefficients->values[3] << std::endl;
+
+	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
 
 	// 将分割出的平面颜色改为红色
 	for (size_t i = 0; i < plane->points.size(); ++i) {
@@ -350,6 +404,7 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 #include <pcl/segmentation/region_growing.h>
 
 
+#include <pcl/features/normal_3d_omp.h>
 
 void regionGrowingSegmentation(pcl::PointCloud<PointT>::Ptr cloud, std::vector<pcl::PointIndices>& clusters)
 {
@@ -357,7 +412,8 @@ void regionGrowingSegmentation(pcl::PointCloud<PointT>::Ptr cloud, std::vector<p
 	pcl::search::Search<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
 	// 计算点云法向
 	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
-	pcl::NormalEstimation<PointT, pcl::Normal> normal_estimator;
+	pcl::NormalEstimationOMP<PointT, pcl::Normal> normal_estimator;
+	//pcl::NormalEstimation<PointT, pcl::Normal> normal_estimator;
 	normal_estimator.setSearchMethod(tree); // 搜索方法为kd树走索
 	normal_estimator.setInputCloud(cloud);  // 填入点云
 	normal_estimator.setKSearch(50);        // 设置搜索范围
@@ -369,29 +425,27 @@ void regionGrowingSegmentation(pcl::PointCloud<PointT>::Ptr cloud, std::vector<p
 	reg.setMinClusterSize(50);                   // 设置最小的集合点数
 	reg.setMaxClusterSize(1000000);               // 设置最大集合点数
 	reg.setSearchMethod(tree);                    // 设置kd树搜索方法
-	reg.setNumberOfNeighbours(30);                // 设置每次邻域搜索数(影响计算速度)
+	reg.setNumberOfNeighbours(10);                // 设置每次邻域搜索数(影响计算速度)
 	reg.setInputCloud(cloud);                     // 设置输入点云
 	reg.setIndices(indices);                      // 设置输入的索引
 	reg.setInputNormals(normals);                 // 设置输入法向
 	reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);      // 设置平滑度阈值（弧度）
 	reg.setCurvatureThreshold(1.0);                      // 设置曲率阈值
-
 	// 分类集合 并开始计算
 	reg.extract(clusters);
-
 	// 一系列输出
 	std::cout << "Number of clusters is equal to " << clusters.size() << std::endl;
 	std::cout << "First cluster has " << clusters[0].indices.size() << " points." << std::endl;
 	std::cout << "These are the indices of the points of the initial" <<
 		std::endl << "cloud that belong to the first cluster:" << std::endl;
 	std::size_t counter = 0;
-	while (counter < clusters[0].indices.size())
-	{
-		std::cout << clusters[0].indices[counter] << ", ";
-		counter++;
-		if (counter % 10 == 0)
-			std::cout << std::endl;
-	}
+	//while (counter < clusters[0].indices.size())
+	//{
+	//	std::cout << clusters[0].indices[counter] << ", ";
+	//	counter++;
+	//	if (counter % 10 == 0)
+	//		std::cout << std::endl;
+	//}
 	std::cout << std::endl;
 	// 显示出分割后的点云，并赋予不同颜色
 	pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud = reg.getColoredCloud();
@@ -400,15 +454,95 @@ void regionGrowingSegmentation(pcl::PointCloud<PointT>::Ptr cloud, std::vector<p
 	while (!viewer.wasStopped())
 	{
 	}
-
-
 }
+/**
+ * 计算选中点的邻域
+ * @param cloud 输入点云
+ * @param selected_point_index 选中点的索引
+ * @return 选中点所在的光滑表面上的所有点的索引
+ */
+void computeSelectedPointNeighborhood(
+	const pcl::PointCloud<PointT>::Ptr& cloud,
+	int selected_point_index)
+{
+	// 建立搜索KD树
+	pcl::search::Search<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
+
+	// 计算点云法向
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+	pcl::NormalEstimationOMP<PointT, pcl::Normal> normal_estimator;
+	normal_estimator.setSearchMethod(tree); // 搜索方法为kd树走索
+	normal_estimator.setInputCloud(cloud);  // 填入点云
+	normal_estimator.setKSearch(50);        // 设置搜索范围
+	normal_estimator.compute(*normals);     // 将法相保存在normals
+
+	// 区域增长分割
+	pcl::RegionGrowing<PointT, pcl::Normal> reg;
+	reg.setMinClusterSize(50);
+	reg.setMaxClusterSize(1000000);
+	reg.setSearchMethod(tree);
+	reg.setNumberOfNeighbours(30);
+	reg.setInputCloud(cloud);
+	reg.setInputNormals(normals);
+	reg.setSmoothnessThreshold(3.0 / 180.0 * M_PI);
+	reg.setCurvatureThreshold(1.0);
+
+	// 设置选中点的索引
+	pcl::IndicesPtr indices(new std::vector<int>);
+	indices->push_back(selected_point_index);
+	reg.setIndices(indices);
+
+	// 提取光滑表面
+	std::vector<pcl::PointIndices> clusters;
+	reg.extract(clusters);
+
+	// 获取选中点所在的光滑表面
+	if (!clusters.empty())
+	{
+		pcl::PointIndices selected_cluster = clusters[0];
+		//return selected_cluster.indices;
+			// 显示出分割后的点云，并赋予不同颜色
+		pcl::PointCloud <pcl::PointXYZRGB>::Ptr colored_cloud = reg.getColoredCloud();
+		pcl::visualization::CloudViewer viewer("Selected Cluster viewer");
+		viewer.showCloud(colored_cloud);
+		while (!viewer.wasStopped())
+		{
+		}
+	}
+
+	//return std::vector<int>();
+}
+
+
+
+
+
 
 
 
 #pragma endregion
 
 #pragma region PCL可视化
+// 可视化圆柱体几何形状
+void addCylinder(pcl::visualization::PCLVisualizer& viewer, PointT selected_point, float radius, float height ) {
+	// 创建一个圆柱体对象
+	pcl::ModelCoefficients cylinder_coeff;
+	cylinder_coeff.values.resize(7);
+	cylinder_coeff.values[0] = selected_point.x;
+	cylinder_coeff.values[1] = selected_point.y;
+	cylinder_coeff.values[2] = selected_point.z - height/2.0f;
+	cylinder_coeff.values[3] = 0;
+	cylinder_coeff.values[4] = 0;
+	cylinder_coeff.values[5] = height;
+	cylinder_coeff.values[6] = radius;
+
+	// 在可视化工具中添加圆柱体
+	viewer.addCylinder(cylinder_coeff, "cylinder", 1);
+
+	// 设置圆柱体的颜色和透明度
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cylinder", 1);
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "cylinder", 1);
+}
 
 // 鼠标单击事件回调函数
 void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, void* viewer_void) {
@@ -426,18 +560,38 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	// 在终端输出选中点的坐标
 	std::cout << "选点：x=" << x << ", y=" << y << ", z=" << z << ", idx=" << idx << std::endl;
 
-	// 重绘选中的点
+	// 重绘选中的点 变色 变大
 	pcl::PointCloud<PointT>::Ptr selected_point_cloud(new pcl::PointCloud<PointT>);
 	selected_point_cloud->push_back(selected_point);
 	pcl::visualization::PointCloudColorHandlerCustom<PointT> red_color(selected_point_cloud, 255, 0, 0);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> green_color(selected_point_cloud, 0, 255, 0);
 	// 检查"selected_point"是否已存在，若已存在，则先从viewer 中remove "selected_point"
 	if (viewer.contains("selected_point")) {
 		viewer.removePointCloud("selected_point", 1);
 	}
 	viewer.addPointCloud(selected_point_cloud, red_color, "selected_point",1);
 	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 30, "selected_point");
-	// 选点拟合平面
-	segmentCloud(cloud_input, idx);
+
+	// 分割出圆柱区域
+	float radius = 2.0f;
+	float height = 30.0f;
+	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>);
+	pcl::IndicesPtr region_indices(new std::vector<int>);
+	addCylinder(viewer, selected_point, radius, height);
+	segmentRegionCylinder(cloud_input, cloud_cylinder, region_indices, selected_point, radius, height);
+	// 将分割出的平面颜色改为红色
+	for (size_t i = 0; i < region_indices->size(); ++i) {
+		int idx = (*region_indices)[i];
+		cloud_input->points[idx].r = 0;
+		cloud_input->points[idx].g = 255;
+		cloud_input->points[idx].b = 0;
+	}
+	// 更新可视化工具中的点云数据
+	viewer.updatePointCloud(cloud_input, "cloud1");
+
+	// 区域拟合平面
+	//segmentCloud_Single(cloud_cylinder);
+	//computeSelectedPointNeighborhood(cloud_input, idx);
 }
 
 
@@ -502,12 +656,12 @@ int main(int argc, char** argv)
 {
 	PointT selected_point; 	//输入：一个三维点 
 
-	readPcd("../cloud/office_wall.pcd", cloud_input); // 输入：隧道点云
+	readPcd("../cloud/Cylinder.pcd", cloud_input); // 输入：隧道点云
 
 
 	std::vector<pcl::PointIndices> clusters;
 	// 调用区域增长分割方法
-	regionGrowingSegmentation(cloud_input, clusters);
+	//regionGrowingSegmentation(cloud_input, clusters);
 	//segmentCloud(cloud_input, point);
 
 	// PCL处理过程可视化
@@ -518,8 +672,8 @@ int main(int argc, char** argv)
 	  addViewport(viewer, 3);
 	  addViewport(viewer, 4);*/
 
-	addCloud(viewer, cloud_input, 1,"z");
-
+	addCloud(viewer, cloud_input, 1);
+	//addCloud(viewer, cloud_input, 1, "z");
 
 
 	//viewer.spin();
