@@ -4,6 +4,7 @@
 typedef pcl::PointXYZRGB PointT;
 
 pcl::PointCloud<PointT>::Ptr cloud_input(new pcl::PointCloud<PointT>); //输入的隧道点云
+pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>); // 法向
 pcl::visualization::PCLVisualizer viewer("MutiViewer");
 
 #pragma region 读写操作和格式转换
@@ -67,6 +68,21 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 #pragma endregion
 
 #pragma region 通用点云算法
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/features/normal_3d_omp.h>
+// 计算点云法向
+void computeNormals(const pcl::PointCloud<PointT>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals) {
+	// 建立搜索KD树
+	pcl::search::Search<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
+	// 计算点云法向
+	pcl::NormalEstimationOMP<PointT, pcl::Normal> normal_estimator;
+	normal_estimator.setSearchMethod(tree); // 搜索方法为kd树走索
+	normal_estimator.setInputCloud(cloud);  // 填入点云
+	normal_estimator.setKSearch(50);        // 设置搜索范围
+	normal_estimator.compute(*normals);     // 将法相保存在normals
+}
 
 // 点云投影
 void projectPointCloudToPlane(pcl::PointCloud<PointT>::Ptr& cloud, pcl::ModelCoefficients::Ptr& plane_coefficients, pcl::PointCloud<PointT>::Ptr& cloud_projected)
@@ -212,38 +228,6 @@ void getIntersection_2d(const pcl::PointCloud<pcl::PointXY>::Ptr& cloud_x,
 	auto end1 = std::clock();
 	std::cerr << "取交集，耗时：" << std::difftime(end1, time_start) << "ms" << std::endl;
 }
-// 以给定点为中心，分割出radius*height的圆柱体，输出圆柱体内的点云
-void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointCloud<PointT>::Ptr cloud_cylinder, PointT selected_point, float radius, float height) {
-	
-	// 创建一个圆柱体对象
-	pcl::ModelCoefficients cylinder_coeff;
-	cylinder_coeff.values.resize(7);
-	cylinder_coeff.values[0] = selected_point.x;
-	cylinder_coeff.values[1] = selected_point.y;
-	cylinder_coeff.values[2] = selected_point.z - height;
-	cylinder_coeff.values[3] = 0;
-	cylinder_coeff.values[4] = 0;
-	cylinder_coeff.values[5] = height;
-	cylinder_coeff.values[6] = radius;
-
-	// 在可视化工具中添加圆柱体
-	viewer.addCylinder(cylinder_coeff, "cylinder", 1);
-
-	// 设置圆柱体的颜色和透明度
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 0.0, 1.0, "cylinder", 0);
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "cylinder", 0);
-
-	// 遍历输入点云中的每个点
-	for (const auto& point : cloud_input->points) {
-		// 计算点到圆心的距离
-		float distance = std::sqrt(std::pow(point.x - selected_point.x, 2) + std::pow(point.y - selected_point.y, 2));
-		// 检查点是否在圆柱体内
-		if (distance <= radius && point.z >= selected_point.z - height && point.z <= selected_point.z + height) {
-			// 将点添加到筛选后的点云中
-			cloud_cylinder->push_back(point);
-		}
-	}
-}
 
 // 以给定点为中心，分割出radius*height的圆柱体，输出圆柱体内的点云 (输出区域点云和索引数组)
 void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointCloud<PointT>::Ptr cloud_cylinder, pcl::IndicesPtr indices, PointT selected_point, float radius, float height) {
@@ -270,20 +254,22 @@ void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointC
 
 #pragma region 详细步骤方法
 // 单次分割
-void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
+void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::IndicesPtr indices) {
 
+	computeNormals(cloud, cloud_normals); // 计算法向
 	// 创建一个SACSegmentation对象，方法类型为RANSAC，并设置模型类型为圆柱
-	pcl::SACSegmentation<PointT> seg;
+	pcl::SACSegmentationFromNormals<PointT, pcl::Normal> seg;
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
 	seg.setMethodType(pcl::SAC_RANSAC);
 	// 设置距离阈值
-	seg.setDistanceThreshold(0.1);
+	seg.setDistanceThreshold(0.05);
 	// 设置最大迭代次数
 	//seg.setMaxIterations(100);
 	// 设置概率
 	//seg.setProbability(0.6);
-	// 设置输入点云
-	seg.setInputCloud(cloud);
+	
+	seg.setInputCloud(cloud); // 设置输入点云
+	seg.setInputNormals(cloud_normals);  // 设置输入法向
 	// 创建一个模型系数对象和一个内点索引对象
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -315,9 +301,10 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud) {
 
 	// 将分割出的平面颜色改为红色
 	for (size_t i = 0; i < inliers->indices.size(); ++i) {
-		int idx = (*inliers).indices[i];
-		cloud_input->points[idx].r = 0;
-		cloud_input->points[idx].g = 255;
+		int idx_ = (*inliers).indices[i];
+		int idx = (*indices)[idx_];
+		cloud_input->points[idx].r = 255;
+		cloud_input->points[idx].g = 0;
 		cloud_input->points[idx].b = 0;
 	}
 	// 更新可视化工具中的点云数据
@@ -566,7 +553,7 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	// 重绘选中的点 变色 变大
 	pcl::PointCloud<PointT>::Ptr selected_point_cloud(new pcl::PointCloud<PointT>);
 	selected_point_cloud->push_back(selected_point);
-	pcl::visualization::PointCloudColorHandlerCustom<PointT> red_color(selected_point_cloud, 255, 0, 0);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> red_color(selected_point_cloud, 255, 255, 255);
 	pcl::visualization::PointCloudColorHandlerCustom<PointT> green_color(selected_point_cloud, 0, 255, 0);
 	// 检查"selected_point"是否已存在，若已存在，则先从viewer 中remove "selected_point"
 	if (viewer.contains("selected_point")) {
@@ -577,7 +564,7 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 
 	// 分割出圆柱区域
 	float radius = 2.0f;
-	float height = 30.0f;
+	float height = 40.0f;
 	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>);
 	pcl::IndicesPtr region_indices(new std::vector<int>);
 	addCylinder(viewer, selected_point, radius, height);
@@ -593,7 +580,7 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	viewer.updatePointCloud(cloud_input, "cloud1");
 
 	// 区域拟合平面
-	segmentCloud_Single(cloud_cylinder);
+	segmentCloud_Single(cloud_cylinder, region_indices);
 
 
 	//computeSelectedPointNeighborhood(cloud_input, idx);
@@ -618,13 +605,13 @@ void addViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, int co
 	viewer.createViewPort(x_min, 0.0, x_max, 1.0, viewport);
 	//viewer.createViewPort((viewport - 1) * 0.25, 0.0, viewport * 0.25, 1.0, viewport); // 这种写法只能保证4个视口不重叠排列
 	viewer.setBackgroundColor(r, g, b, viewport);
-	//viewer.addCoordinateSystem(3, "coordinate", viewport);
+	viewer.addCoordinateSystem(3, "coordinate", viewport);
 	std::string x_label = "x_label_v" + std::to_string(viewport);
 	std::string y_label = "y_label_v" + std::to_string(viewport);
 	std::string z_label = "z_label_v" + std::to_string(viewport);
-	//viewer.addText3D("x", pcl::PointXYZ(11, 0, 0), 1.0, 1.0, 1.0, 1.0, x_label, viewport);
-	//viewer.addText3D("y", pcl::PointXYZ(0, 11, 0), 1.0, 1.0, 1.0, 1.0, y_label, viewport);
-	//viewer.addText3D("z", pcl::PointXYZ(0, 0, 11), 1.0, 1.0, 1.0, 1.0, z_label, viewport);
+	viewer.addText3D("x", pcl::PointXYZ(11, 0, 0), 1.0, 1.0, 1.0, 1.0, x_label, viewport);
+	viewer.addText3D("y", pcl::PointXYZ(0, 11, 0), 1.0, 1.0, 1.0, 1.0, y_label, viewport);
+	viewer.addText3D("z", pcl::PointXYZ(0, 0, 11), 1.0, 1.0, 1.0, 1.0, z_label, viewport);
 	// 标题
 	viewer.addText("viewport " + std::to_string(viewport), 10, 10, std::to_string(viewport), viewport);
 }
@@ -662,6 +649,14 @@ int main(int argc, char** argv)
 	PointT selected_point; 	//输入：一个三维点 
 
 	readPcd("../cloud/Cylinder.pcd", cloud_input); // 输入：隧道点云
+
+	// 旋转点云
+	Eigen::Vector3f normal_planeXY(0.0f, 0.0f, 1.0f); // 旋转后的平面法向
+	//Eigen::Vector3f normal_incline(0.35, 0.22, 0.91); // 模拟非z法向 
+	Eigen::Vector3f normal_incline(0.09f, -0.16f, 0.98f); // 模拟非z法向 
+	Eigen::Matrix4f rotation = getRotationMatrix(normal_planeXY, normal_incline); // 求旋转矩阵
+	auto inv_rotation = rotation.transpose(); // 得逆旋转矩阵
+	//pcl::transformPointCloud(*cloud_input, *cloud_input, rotation); // 旋转
 
 
 	std::vector<pcl::PointIndices> clusters;
