@@ -442,8 +442,8 @@ std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr
 		circle_cloud->points.push_back(top_cloud->points[inliers_top->indices[i]]);
 	}
 
-	addCircle2D(viewer,*coefficients_bottom,"circle_bottom");
-	addCircle2D(viewer, *coefficients_top, "circle_top");
+	//addCircle2D(viewer,*coefficients_bottom,"circle_bottom");
+	//addCircle2D(viewer, *coefficients_top, "circle_top");
 	// 使用addCloudRGB方法可视化拟合出的圆
 	addCloudRGB(circle_cloud, 255, 255, 0); 
 	// 使用addCloudRGB方法可视化拟合出的圆
