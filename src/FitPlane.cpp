@@ -4,6 +4,7 @@
 typedef pcl::PointXYZRGB PointT;
 
 pcl::PointCloud<PointT>::Ptr cloud_input(new pcl::PointCloud<PointT>); //输入的隧道点云
+pcl::PointCloud<PointT>::Ptr cloud_voxel(new pcl::PointCloud<PointT>); //体素点云
 pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>); // 法向
 pcl::visualization::PCLVisualizer viewer("MutiViewer");
 
@@ -68,9 +69,58 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 #pragma endregion
 
 #pragma region 通用点云算法
+#include <pcl/sample_consensus/sac_model_cylinder.h>
+#include <boost/make_shared.hpp>
+
+// 由已知圆柱模型系数筛出形状点云
+void extractCylinder(const pcl::PointCloud<PointT>::Ptr cloud, const pcl::ModelCoefficients::Ptr coefficients, pcl::PointCloud<PointT>::Ptr cylinder_cloud)
+{
+	// 创建一个SampleConsensusModelCylinder对象
+	pcl::SampleConsensusModelCylinder<PointT, pcl::Normal> model_cylinder(cloud_input);
+
+	// 创建一个PointIndices对象来存储内点索引
+	pcl::PointIndices::Ptr inliers_ptr(new pcl::PointIndices);
+
+	// 获取模型系数向量
+	Eigen::VectorXf coeff(coefficients->values.size());
+	for (size_t i = 0; i < coefficients->values.size(); ++i)
+		coeff[i] = coefficients->values[i];
+	std::cout << "coeff: " << coeff.transpose() << std::endl;
+
+	// 调用selectWithinDistance函数选择位于圆柱模型上的点
+	model_cylinder.selectWithinDistance(coeff, 0.01, inliers_ptr->indices);
+
+	// 创建一个ExtractIndices对象
+	pcl::ExtractIndices<PointT> extract;
+	extract.setInputCloud(cloud);
+
+	// 设置内点索引
+	extract.setIndices(inliers_ptr);
+
+	// 设置提取模式为非负（保留内点）
+	extract.setNegative(false);
+
+	// 提取圆柱体
+	extract.filter(*cylinder_cloud);
+
+}
+
+
+
+// 体素化滤波（重心）
+void filterVoxelGrid(const pcl::PointCloud<PointT>::Ptr& input_cloud,
+	pcl::PointCloud<PointT>::Ptr& output_cloud, float leaf_size)
+{
+	pcl::VoxelGrid<PointT> voxel_grid;
+	voxel_grid.setInputCloud(input_cloud);
+	//voxel_grid.setLeafSize(leaf_size, leaf_size, leaf_size); 
+	voxel_grid.setLeafSize(leaf_size, leaf_size, leaf_size); // z轴禁用下采样
+	voxel_grid.filter(*output_cloud);
+}
 
 // 计算点云法向
 void computeNormals(const pcl::PointCloud<PointT>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals) {
+	auto start = std::clock();
 	// 建立搜索KD树
 	pcl::search::Search<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
 	// 计算点云法向
@@ -79,6 +129,8 @@ void computeNormals(const pcl::PointCloud<PointT>::Ptr cloud, pcl::PointCloud<pc
 	normal_estimator.setInputCloud(cloud);  // 填入点云
 	normal_estimator.setKSearch(50);        // 设置搜索范围
 	normal_estimator.compute(*normals);     // 将法相保存在normals
+	auto end_1 = std::clock();
+	std::cerr << "计算法向，耗时：" << std::difftime(end_1, start) << "ms" << std::endl;
 }
 
 // 点云投影
@@ -250,10 +302,11 @@ void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointC
 #pragma endregion
 
 #pragma region 详细步骤方法
-// 单次分割
+// 单次SAC分割
 void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::IndicesPtr indices) {
 
 	computeNormals(cloud, cloud_normals); // 计算法向
+	auto start = std::clock();
 	// 创建一个SACSegmentation对象，方法类型为RANSAC，并设置模型类型为圆柱
 	pcl::SACSegmentationFromNormals<PointT, pcl::Normal> seg;
 	seg.setModelType(pcl::SACMODEL_CYLINDER);
@@ -272,6 +325,8 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 	// 调用segment方法进行分割
 	seg.segment(*inliers, *coefficients);
+
+
 	// 检查是否分割成功
 	if (inliers->indices.size() == 0) {
 		std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
@@ -280,13 +335,17 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 
 	// 创建一个新的点云来存储分割出的平面
 	pcl::PointCloud<PointT>::Ptr plane(new pcl::PointCloud<PointT>);
+	extractCylinder(cloud, coefficients, plane);
 
 	// 从原始点云中提取分割出的平面
-	pcl::ExtractIndices<PointT> extract;
-	extract.setInputCloud(cloud);
-	extract.setIndices(inliers);
-	extract.setNegative(false);
-	extract.filter(*plane);
+	//pcl::ExtractIndices<PointT> extract;
+	//extract.setInputCloud(cloud);
+	//extract.setIndices(inliers);
+	//extract.setNegative(false);
+	//extract.filter(*plane);
+
+	auto end_1 = std::clock();
+	std::cerr << "SAC分割，耗时：" << std::difftime(end_1, start) << "ms" << std::endl;
 
 	// 输出分割结果
 	std::cout << "模型系数: " << coefficients->values[0] << " "
@@ -297,13 +356,14 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
 
 	// 将分割出的平面颜色改为红色
-	for (size_t i = 0; i < inliers->indices.size(); ++i) {
-		int idx_ = (*inliers).indices[i];
-		int idx = (*indices)[idx_];
-		cloud_input->points[idx].r = 255;
-		cloud_input->points[idx].g = 0;
-		cloud_input->points[idx].b = 0;
+	for (size_t i = 0; i < plane->points.size(); ++i) {
+		plane->points[i].r = 255;
+		plane->points[i].g = 0;
+		plane->points[i].b = 0;
 	}
+	*cloud_input += *plane;
+
+
 	// 更新可视化工具中的点云数据
 	viewer.updatePointCloud(cloud_input, "cloud1");
 }
@@ -545,25 +605,27 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	viewer.addPointCloud(selected_point_cloud, red_color, "selected_point",1);
 	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 30, "selected_point");
 
-	// 分割出圆柱区域
 	float radius = 2.0f;
 	float height = 40.0f;
+	float leaf_size = 0.2f;
 	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>);
 	pcl::IndicesPtr region_indices(new std::vector<int>);
-	addCylinder(viewer, selected_point, radius, height);
+
+	// 分割出圆柱区域
 	segmentRegionCylinder(cloud_input, cloud_cylinder, region_indices, selected_point, radius, height);
-	// 将分割出的平面颜色改为红色
+	addCylinder(viewer, selected_point, radius, height);  // 圆柱区域可视化
+	// 将区域内的点颜色改为绿色
 	for (size_t i = 0; i < region_indices->size(); ++i) {
 		int idx = (*region_indices)[i];
 		cloud_input->points[idx].r = 0;
 		cloud_input->points[idx].g = 255;
 		cloud_input->points[idx].b = 0;
 	}
-	// 更新可视化工具中的点云数据
 	viewer.updatePointCloud(cloud_input, "cloud1");
 
+	filterVoxelGrid(cloud_cylinder, cloud_voxel, leaf_size);
 	// 区域拟合平面
-	segmentCloud_Single(cloud_cylinder, region_indices);
+	segmentCloud_Single(cloud_voxel, region_indices);
 
 
 	//computeSelectedPointNeighborhood(cloud_input, idx);
@@ -639,7 +701,7 @@ int main(int argc, char** argv)
 	Eigen::Vector3f normal_incline(0.09f, -0.16f, 0.98f); // 模拟非z法向 
 	Eigen::Matrix4f rotation = getRotationMatrix(normal_planeXY, normal_incline); // 求旋转矩阵
 	auto inv_rotation = rotation.transpose(); // 得逆旋转矩阵
-	//pcl::transformPointCloud(*cloud_input, *cloud_input, rotation); // 旋转
+	pcl::transformPointCloud(*cloud_input, *cloud_input, rotation); // 旋转
 
 
 	std::vector<pcl::PointIndices> clusters;

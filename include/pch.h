@@ -52,7 +52,7 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/filters/filter_indices.h> 
 #include <pcl/segmentation/region_growing.h>
-
+#include <pcl/segmentation/extract_polygonal_prism_data.h>
 
 
 
