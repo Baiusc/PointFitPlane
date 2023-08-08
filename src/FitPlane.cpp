@@ -75,12 +75,19 @@ void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT po
 
 	// 设置线段的颜色和宽度
 	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "line");
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 5, "line");
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "line");
 }
 
 #pragma region 通用点云算法
-float estimateCylinderHeight(const pcl::PointCloud<PointT>::Ptr cloud_cylinder, const pcl::ModelCoefficients::Ptr coefficients)
+// 计算圆柱轴端点
+std::pair<PointT, PointT> getCylinderAxisEndPoints(const pcl::PointCloud<PointT>::Ptr cloud_cylinder, const pcl::ModelCoefficients::Ptr coefficients)
 {
+	// 圆柱轴起点
+	float x = coefficients->values[0];
+	float y = coefficients->values[1];
+	float z = coefficients->values[2];
+	Eigen::Vector3f origin(x, y, z);
+
 	// 圆柱轴方向
 	float dx = coefficients->values[3];
 	float dy = coefficients->values[4];
@@ -92,19 +99,31 @@ float estimateCylinderHeight(const pcl::PointCloud<PointT>::Ptr cloud_cylinder, 
 	for (size_t i = 0; i < cloud_cylinder->points.size(); ++i) {
 		const auto& point = cloud_cylinder->points[i];
 		Eigen::Vector3f point_vec(point.x, point.y, point.z);
-		projections[i] = axis.dot(point_vec);
+		projections[i] = axis.dot(point_vec - origin);
 	}
 
 	// 找到投影值的最大值和最小值
 	auto minmax = std::minmax_element(projections.begin(), projections.end());
-	float min_proj = *minmax.first;
-	float max_proj = *minmax.second;
 
-	// 计算圆柱体高度
-	float height = max_proj - min_proj;
+	// 计算极小值点和极大值点在圆柱轴上的投影点
+	Eigen::Vector3f min_proj_point = origin + axis * (*minmax.first);
+	Eigen::Vector3f max_proj_point = origin + axis * (*minmax.second);
 
-	return height;
+	// 极小值点和极大值点在圆柱轴上的投影点
+	PointT min_proj_pt;
+	min_proj_pt.x = min_proj_point[0];
+	min_proj_pt.y = min_proj_point[1];
+	min_proj_pt.z = min_proj_point[2];
+
+	PointT max_proj_pt;
+	max_proj_pt.x = max_proj_point[0];
+	max_proj_pt.y = max_proj_point[1];
+	max_proj_pt.z = max_proj_point[2];
+
+	return std::make_pair(min_proj_pt, max_proj_pt);
 }
+
+
 
 #include <pcl/sample_consensus/sac_model_cylinder.h>
 #include <boost/make_shared.hpp>
@@ -411,21 +430,11 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	float dz = coefficients->values[5]; // 圆柱轴方向的z分量
 	float radius = coefficients->values[6]; // 圆柱半径
 
-	float height = estimateCylinderHeight(cloud_cylinder, coefficients); // 点投影到轴 求max-min 估算高度
+	auto axis_end_pt = getCylinderAxisEndPoints(cloud_cylinder, coefficients); // 计算圆柱轴端点
 
-	PointT bottom_center;
-	// 计算底面中心点坐标
-	bottom_center.x = x;
-	bottom_center.y = y;
-	bottom_center.z = z;
-	PointT top_center;
-	// 计算顶面中心点坐标
-	top_center.x = x + dx * height;
-	top_center.y = y + dy * height;
-	top_center.z = z + dz * height;
-	addLine(viewer, bottom_center, top_center);  
-	std::cout << "底面中心点坐标: (" << bottom_center.x << ", " << bottom_center.y << ", " << bottom_center.z << ")" << std::endl;
-	std::cout << "顶面中心点坐标: (" << top_center.x << ", " << top_center.y << ", " << top_center.z << ")" << std::endl;
+	addLine(viewer, axis_end_pt.first, axis_end_pt.second);
+	std::cout << "轴底坐标: (" << axis_end_pt.first.x << ", " << axis_end_pt.first.y << ", " << axis_end_pt.first.z << ")" << std::endl;
+	std::cout << "轴顶坐标: (" << axis_end_pt.second.x << ", " << axis_end_pt.second.y << ", " << axis_end_pt.second.z << ")" << std::endl;
 
 }
 // 迭代分割
