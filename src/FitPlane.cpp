@@ -69,14 +69,14 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 #pragma endregion
 
 #pragma region 通用点云算法
-// 在可视化工具中添加3d圆
-void addCircle3D(pcl::visualization::PCLVisualizer& viewer, const pcl::ModelCoefficients& circle3d_coeff, const std::string& id) {
+// 在可视化工具中添加2d圆
+void addCircle2D(pcl::visualization::PCLVisualizer& viewer, const pcl::ModelCoefficients& circle2d_coeff, const std::string& id) {
 	// 在可视化工具中添加圆
-	viewer.addCircle(circle3d_coeff, id);
+	viewer.addCircle(circle2d_coeff, id, 1);
 
 	// 设置圆的颜色和透明度
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.5, 0.5, id);
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, id);
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 1.0, 1.0, id);
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.9, id);
 }
 // 添加点云rgb
 void addCloudRGB(pcl::PointCloud<PointT>::Ptr new_cloud, int r, int g, int b) {
@@ -377,8 +377,8 @@ std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr
 	// 创建一个KdTreeFLANN对象
 	pcl::KdTreeFLANN<PointT> kdtree;
 	kdtree.setInputCloud(cloud_cylinder);
-
 	// 创建一个点云对象，用于存储底面点云
+
 	pcl::PointCloud<PointT>::Ptr bottom_cloud(new pcl::PointCloud<PointT>);
 	// 在KdTree中搜索axis_pt_min附近的点
 	std::vector<int> pointIdxRadiusSearch;
@@ -406,7 +406,7 @@ std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr
 	pcl::ModelCoefficients::Ptr coefficients_bottom(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers_bottom(new pcl::PointIndices);
 	seg_bottom.setOptimizeCoefficients(true);
-	seg_bottom.setModelType(pcl::SACMODEL_CIRCLE3D);
+	seg_bottom.setModelType(pcl::SACMODEL_CIRCLE2D);
 	seg_bottom.setMethodType(pcl::SAC_RANSAC);
 	seg_bottom.setDistanceThreshold(0.05);
 	seg_bottom.setInputCloud(bottom_cloud);
@@ -415,14 +415,14 @@ std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr
 	PointT bottom_center;
 	bottom_center.x = coefficients_bottom->values[0];
 	bottom_center.y = coefficients_bottom->values[1];
-	bottom_center.z = coefficients_bottom->values[2];
+	bottom_center.z = axis_pt_min.z;
 
 	// 对顶面点云进行圆拟合
 	pcl::SACSegmentation<PointT> seg_top;
 	pcl::ModelCoefficients::Ptr coefficients_top(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers_top(new pcl::PointIndices);
 	seg_top.setOptimizeCoefficients(true);
-	seg_top.setModelType(pcl::SACMODEL_CIRCLE3D);
+	seg_top.setModelType(pcl::SACMODEL_CIRCLE2D);
 	seg_top.setMethodType(pcl::SAC_RANSAC);
 	seg_top.setDistanceThreshold(0.05);
 	seg_top.setInputCloud(top_cloud);
@@ -431,7 +431,7 @@ std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr
 	PointT top_center;
 	top_center.x = coefficients_top->values[0];
 	top_center.y = coefficients_top->values[1];
-	top_center.z = coefficients_top->values[2];
+	top_center.z = axis_pt_max.z;
 
 	// 创建一个点云对象，用于存储拟合出的圆
 	pcl::PointCloud<PointT>::Ptr circle_cloud(new pcl::PointCloud<PointT>);
@@ -442,8 +442,8 @@ std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr
 		circle_cloud->points.push_back(top_cloud->points[inliers_top->indices[i]]);
 	}
 
-	addCircle3D(viewer,*coefficients_bottom,"circle_bottom");
-	addCircle3D(viewer, *coefficients_top, "circle_top");
+	addCircle2D(viewer,*coefficients_bottom,"circle_bottom");
+	addCircle2D(viewer, *coefficients_top, "circle_top");
 	// 使用addCloudRGB方法可视化拟合出的圆
 	addCloudRGB(circle_cloud, 255, 255, 0); 
 	// 使用addCloudRGB方法可视化拟合出的圆
