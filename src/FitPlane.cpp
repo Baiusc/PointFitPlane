@@ -67,8 +67,45 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 	}
 }
 #pragma endregion
+// 在可视化工具中添加线段
+void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT point2)
+{
+	// 在可视化工具中添加线段
+	viewer.addLine(point1, point2, "line");
+
+	// 设置线段的颜色和宽度
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "line");
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 5, "line");
+}
 
 #pragma region 通用点云算法
+float estimateCylinderHeight(const pcl::PointCloud<PointT>::Ptr cloud_cylinder, const pcl::ModelCoefficients::Ptr coefficients)
+{
+	// 圆柱轴方向
+	float dx = coefficients->values[3];
+	float dy = coefficients->values[4];
+	float dz = coefficients->values[5];
+	Eigen::Vector3f axis(dx, dy, dz);
+
+	// 计算点云中所有点在圆柱轴方向上的投影
+	std::vector<float> projections(cloud_cylinder->points.size());
+	for (size_t i = 0; i < cloud_cylinder->points.size(); ++i) {
+		const auto& point = cloud_cylinder->points[i];
+		Eigen::Vector3f point_vec(point.x, point.y, point.z);
+		projections[i] = axis.dot(point_vec);
+	}
+
+	// 找到投影值的最大值和最小值
+	auto minmax = std::minmax_element(projections.begin(), projections.end());
+	float min_proj = *minmax.first;
+	float max_proj = *minmax.second;
+
+	// 计算圆柱体高度
+	float height = max_proj - min_proj;
+
+	return height;
+}
+
 #include <pcl/sample_consensus/sac_model_cylinder.h>
 #include <boost/make_shared.hpp>
 
@@ -333,16 +370,16 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 		return;
 	}
 
-	// 创建一个新的点云来存储分割出的平面
-	pcl::PointCloud<PointT>::Ptr plane(new pcl::PointCloud<PointT>);
-	extractCylinder(cloud, coefficients, plane);
+	// 分割出的形状点云
+	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>);
+	//extractCylinder(cloud, coefficients, plane);
 
-	// 从原始点云中提取分割出的平面
-	//pcl::ExtractIndices<PointT> extract;
-	//extract.setInputCloud(cloud);
-	//extract.setIndices(inliers);
-	//extract.setNegative(false);
-	//extract.filter(*plane);
+	// 从原始点云中提取分割出的形状点云
+	pcl::ExtractIndices<PointT> extract;
+	extract.setInputCloud(cloud);
+	extract.setIndices(inliers);
+	extract.setNegative(false);
+	extract.filter(*cloud_cylinder);
 
 	auto end_1 = std::clock();
 	std::cerr << "SAC分割，耗时：" << std::difftime(end_1, start) << "ms" << std::endl;
@@ -355,17 +392,41 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 
 	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
 
-	// 将分割出的平面颜色改为红色
-	for (size_t i = 0; i < plane->points.size(); ++i) {
-		plane->points[i].r = 255;
-		plane->points[i].g = 0;
-		plane->points[i].b = 0;
+	// 将形状点云颜色改为红色
+	for (size_t i = 0; i < cloud_cylinder->points.size(); ++i) {
+		cloud_cylinder->points[i].r = 255;
+		cloud_cylinder->points[i].g = 0;
+		cloud_cylinder->points[i].b = 0;
 	}
-	*cloud_input += *plane;
-
+	*cloud_input += *cloud_cylinder;
 
 	// 更新可视化工具中的点云数据
 	viewer.updatePointCloud(cloud_input, "cloud1");
+
+	float x = coefficients->values[0]; // 圆柱轴起点的x坐标
+	float y = coefficients->values[1]; // 圆柱轴起点的y坐标
+	float z = coefficients->values[2]; // 圆柱轴起点的z坐标
+	float dx = coefficients->values[3]; // 圆柱轴方向的x分量
+	float dy = coefficients->values[4]; // 圆柱轴方向的y分量
+	float dz = coefficients->values[5]; // 圆柱轴方向的z分量
+	float radius = coefficients->values[6]; // 圆柱半径
+
+	float height = estimateCylinderHeight(cloud_cylinder, coefficients); // 点投影到轴 求max-min 估算高度
+
+	PointT bottom_center;
+	// 计算底面中心点坐标
+	bottom_center.x = x;
+	bottom_center.y = y;
+	bottom_center.z = z;
+	PointT top_center;
+	// 计算顶面中心点坐标
+	top_center.x = x + dx * height;
+	top_center.y = y + dy * height;
+	top_center.z = z + dz * height;
+	addLine(viewer, bottom_center, top_center);  
+	std::cout << "底面中心点坐标: (" << bottom_center.x << ", " << bottom_center.y << ", " << bottom_center.z << ")" << std::endl;
+	std::cout << "顶面中心点坐标: (" << top_center.x << ", " << top_center.y << ", " << top_center.z << ")" << std::endl;
+
 }
 // 迭代分割
 void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_index)
@@ -556,7 +617,10 @@ void computeSelectedPointNeighborhood(
 #pragma endregion
 
 #pragma region PCL可视化
-// 可视化圆柱体几何形状
+
+
+
+// 在可视化工具中添加圆柱体
 void addCylinder(pcl::visualization::PCLVisualizer& viewer, PointT selected_point, float radius, float height ) {
 	// 创建一个圆柱体对象
 	pcl::ModelCoefficients cylinder_coeff;
@@ -623,9 +687,9 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	}
 	viewer.updatePointCloud(cloud_input, "cloud1");
 
-	filterVoxelGrid(cloud_cylinder, cloud_voxel, leaf_size);
+	//filterVoxelGrid(cloud_cylinder, cloud_voxel, leaf_size);
 	// 区域拟合平面
-	segmentCloud_Single(cloud_voxel, region_indices);
+	segmentCloud_Single(cloud_cylinder, region_indices);
 
 
 	//computeSelectedPointNeighborhood(cloud_input, idx);
