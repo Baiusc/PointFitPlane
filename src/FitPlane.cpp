@@ -68,10 +68,7 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 #pragma endregion
 
 #pragma region 通用点云算法
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
-#include <pcl/search/kdtree.h>
-#include <pcl/features/normal_3d_omp.h>
+
 // 计算点云法向
 void computeNormals(const pcl::PointCloud<PointT>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals) {
 	// 建立搜索KD树
@@ -381,20 +378,6 @@ void segmentCloud(const pcl::PointCloud<PointT>::Ptr cloud, int selected_point_i
 	}
 	std::cout << "while循环结束！" << std::endl;
 }
-
-#include <iostream>
-#include <vector>
-#include <pcl/point_types.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/search/search.h>
-#include <pcl/search/kdtree.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/filters/filter_indices.h> // for pcl::removeNaNFromPointCloud
-#include <pcl/segmentation/region_growing.h>
-
-
-#include <pcl/features/normal_3d_omp.h>
 
 void regionGrowingSegmentation(pcl::PointCloud<PointT>::Ptr cloud, std::vector<pcl::PointIndices>& clusters)
 {

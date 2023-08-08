@@ -44,6 +44,17 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/surface/convex_hull.h>
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+#include <pcl/features/normal_3d_omp.h>
+#include <pcl/search/search.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/filters/filter_indices.h> 
+#include <pcl/segmentation/region_growing.h>
+
+
+
 
 #include <vtkActor.h>
 #include <vtkAxesActor.h>
