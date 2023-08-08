@@ -67,18 +67,29 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 	}
 }
 #pragma endregion
-// 在可视化工具中添加线段
-void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT point2)
-{
-	// 在可视化工具中添加线段
-	viewer.addLine(point1, point2, "line");
-
-	// 设置线段的颜色和宽度
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "line");
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "line");
-}
 
 #pragma region 通用点云算法
+// 在可视化工具中添加3d圆
+void addCircle3D(pcl::visualization::PCLVisualizer& viewer, const pcl::ModelCoefficients& circle3d_coeff, const std::string& id) {
+	// 在可视化工具中添加圆
+	viewer.addCircle(circle3d_coeff, id);
+
+	// 设置圆的颜色和透明度
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.5, 0.5, id);
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, id);
+}
+// 添加点云rgb
+void addCloudRGB(pcl::PointCloud<PointT>::Ptr new_cloud, int r, int g, int b) {
+	for (size_t i = 0; i < new_cloud->points.size(); ++i) {
+		new_cloud->points[i].r = r;
+		new_cloud->points[i].g = g;
+		new_cloud->points[i].b = b;
+	}
+	*cloud_input += *new_cloud;
+
+	// 更新可视化工具中的点云数据
+	viewer.updatePointCloud(cloud_input, "cloud1");
+}
 // 计算圆柱轴端点
 std::pair<PointT, PointT> getCylinderAxisEndPoints(const pcl::PointCloud<PointT>::Ptr cloud_cylinder, const pcl::ModelCoefficients::Ptr coefficients)
 {
@@ -358,6 +369,108 @@ void segmentRegionCylinder(pcl::PointCloud<PointT>::Ptr cloud_input, pcl::PointC
 #pragma endregion
 
 #pragma region 详细步骤方法
+
+// 计算底面和顶面的圆心 （kdtree+SAC）
+std::pair<PointT, PointT> calcBottomTopCenter(const pcl::PointCloud<PointT>::Ptr cloud_cylinder, pcl::ModelCoefficients::Ptr coefficients, const PointT& axis_pt_min, const PointT& axis_pt_max)
+{
+	double radius = coefficients->values[6]; // 圆柱半径
+	// 创建一个KdTreeFLANN对象
+	pcl::KdTreeFLANN<PointT> kdtree;
+	kdtree.setInputCloud(cloud_cylinder);
+
+	// 创建一个点云对象，用于存储底面点云
+	pcl::PointCloud<PointT>::Ptr bottom_cloud(new pcl::PointCloud<PointT>);
+	// 在KdTree中搜索axis_pt_min附近的点
+	std::vector<int> pointIdxRadiusSearch;
+	std::vector<float> pointRadiusSquaredDistance;
+	if (kdtree.radiusSearch(axis_pt_min, radius*3.0, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0) {
+		for (size_t i = 0; i < pointIdxRadiusSearch.size(); ++i) {
+			bottom_cloud->points.push_back(cloud_cylinder->points[pointIdxRadiusSearch[i]]);
+		}
+	}
+
+	// 创建一个点云对象，用于存储顶面点云
+	pcl::PointCloud<PointT>::Ptr top_cloud(new pcl::PointCloud<PointT>);
+	// 在KdTree中搜索axis_pt_max附近的点
+	if (kdtree.radiusSearch(axis_pt_max, radius * 3.0, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0) {
+		for (size_t i = 0; i < pointIdxRadiusSearch.size(); ++i) {
+			top_cloud->points.push_back(cloud_cylinder->points[pointIdxRadiusSearch[i]]);
+		}
+	}
+
+	addCloudRGB(bottom_cloud, 255, 127, 0);
+	addCloudRGB(top_cloud, 255, 127, 0);
+
+	// 对底面点云进行圆拟合
+	pcl::SACSegmentation<PointT> seg_bottom;
+	pcl::ModelCoefficients::Ptr coefficients_bottom(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers_bottom(new pcl::PointIndices);
+	seg_bottom.setOptimizeCoefficients(true);
+	seg_bottom.setModelType(pcl::SACMODEL_CIRCLE3D);
+	seg_bottom.setMethodType(pcl::SAC_RANSAC);
+	seg_bottom.setDistanceThreshold(0.05);
+	seg_bottom.setInputCloud(bottom_cloud);
+	seg_bottom.segment(*inliers_bottom, *coefficients_bottom);
+
+	PointT bottom_center;
+	bottom_center.x = coefficients_bottom->values[0];
+	bottom_center.y = coefficients_bottom->values[1];
+	bottom_center.z = coefficients_bottom->values[2];
+
+	// 对顶面点云进行圆拟合
+	pcl::SACSegmentation<PointT> seg_top;
+	pcl::ModelCoefficients::Ptr coefficients_top(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers_top(new pcl::PointIndices);
+	seg_top.setOptimizeCoefficients(true);
+	seg_top.setModelType(pcl::SACMODEL_CIRCLE3D);
+	seg_top.setMethodType(pcl::SAC_RANSAC);
+	seg_top.setDistanceThreshold(0.05);
+	seg_top.setInputCloud(top_cloud);
+	seg_top.segment(*inliers_top, *coefficients_top);
+
+	PointT top_center;
+	top_center.x = coefficients_top->values[0];
+	top_center.y = coefficients_top->values[1];
+	top_center.z = coefficients_top->values[2];
+
+	// 创建一个点云对象，用于存储拟合出的圆
+	pcl::PointCloud<PointT>::Ptr circle_cloud(new pcl::PointCloud<PointT>);
+	for (size_t i = 0; i < inliers_bottom->indices.size(); ++i) {
+		circle_cloud->points.push_back(bottom_cloud->points[inliers_bottom->indices[i]]);
+	}
+	for (size_t i = 0; i < inliers_top->indices.size(); ++i) {
+		circle_cloud->points.push_back(top_cloud->points[inliers_top->indices[i]]);
+	}
+
+	addCircle3D(viewer,*coefficients_bottom,"circle_bottom");
+	addCircle3D(viewer, *coefficients_top, "circle_top");
+	// 使用addCloudRGB方法可视化拟合出的圆
+	addCloudRGB(circle_cloud, 255, 255, 0); 
+	// 使用addCloudRGB方法可视化拟合出的圆
+	addCloudRGB(circle_cloud, 255, 255, 0); 
+
+	return std::make_pair(bottom_center, top_center);
+}
+// 在可视化工具中添加线段
+void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT point2, const std::string& line_id, double r, double g, double b)
+{
+	// 在可视化工具中添加线段
+	viewer.addLine(point1, point2, r, g, b, line_id);
+
+	// 设置线段的颜色和宽度
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, line_id);
+}
+
+// 在可视化工具中添加线段
+void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT point2)
+{
+	// 在可视化工具中添加线段
+	viewer.addLine(point1, point2, "line");
+
+	// 设置线段的颜色和宽度
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "line");
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "line");
+}
 // 单次SAC分割
 void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::IndicesPtr indices) {
 
@@ -410,17 +523,8 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 		<< coefficients->values[3] << std::endl;
 
 	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
+	addCloudRGB(cloud_cylinder,255,0,0);
 
-	// 将形状点云颜色改为红色
-	for (size_t i = 0; i < cloud_cylinder->points.size(); ++i) {
-		cloud_cylinder->points[i].r = 255;
-		cloud_cylinder->points[i].g = 0;
-		cloud_cylinder->points[i].b = 0;
-	}
-	*cloud_input += *cloud_cylinder;
-
-	// 更新可视化工具中的点云数据
-	viewer.updatePointCloud(cloud_input, "cloud1");
 
 	float x = coefficients->values[0]; // 圆柱轴起点的x坐标
 	float y = coefficients->values[1]; // 圆柱轴起点的y坐标
@@ -430,11 +534,16 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	float dz = coefficients->values[5]; // 圆柱轴方向的z分量
 	float radius = coefficients->values[6]; // 圆柱半径
 
-	auto axis_end_pt = getCylinderAxisEndPoints(cloud_cylinder, coefficients); // 计算圆柱轴端点
-
-	addLine(viewer, axis_end_pt.first, axis_end_pt.second);
-	std::cout << "轴底坐标: (" << axis_end_pt.first.x << ", " << axis_end_pt.first.y << ", " << axis_end_pt.first.z << ")" << std::endl;
-	std::cout << "轴顶坐标: (" << axis_end_pt.second.x << ", " << axis_end_pt.second.y << ", " << axis_end_pt.second.z << ")" << std::endl;
+	// 计算圆柱轴端点
+	auto axis_end_pts = getCylinderAxisEndPoints(cloud_cylinder, coefficients); 
+	addLine(viewer, axis_end_pts.first, axis_end_pts.second); // 可视化圆柱轴线
+	std::cout << "轴底坐标: (" << axis_end_pts.first.x << ", " << axis_end_pts.first.y << ", " << axis_end_pts.first.z << ")" << std::endl;
+	std::cout << "轴顶坐标: (" << axis_end_pts.second.x << ", " << axis_end_pts.second.y << ", " << axis_end_pts.second.z << ")" << std::endl;
+	// 计算底面和顶面的圆心
+	auto circle2d_center_pts = calcBottomTopCenter(cloud_cylinder, coefficients, axis_end_pts.first, axis_end_pts.second);
+	addLine(viewer, circle2d_center_pts.first, circle2d_center_pts.second,"line2",1.0,0.0,1.0); // 可视化圆心连线
+	std::cout << "底面圆心坐标: (" << circle2d_center_pts.first.x << ", " << circle2d_center_pts.first.y << ", " << circle2d_center_pts.first.z << ")" << std::endl;
+	std::cout << "顶面圆心坐标: (" << circle2d_center_pts.second.x << ", " << circle2d_center_pts.second.y << ", " << circle2d_center_pts.second.z << ")" << std::endl;
 
 }
 // 迭代分割
@@ -774,7 +883,7 @@ int main(int argc, char** argv)
 	Eigen::Vector3f normal_incline(0.09f, -0.16f, 0.98f); // 模拟非z法向 
 	Eigen::Matrix4f rotation = getRotationMatrix(normal_planeXY, normal_incline); // 求旋转矩阵
 	auto inv_rotation = rotation.transpose(); // 得逆旋转矩阵
-	pcl::transformPointCloud(*cloud_input, *cloud_input, rotation); // 旋转
+	//pcl::transformPointCloud(*cloud_input, *cloud_input, rotation); // 旋转
 
 
 	std::vector<pcl::PointIndices> clusters;
