@@ -540,10 +540,10 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	std::cout << "轴底坐标: (" << axis_end_pts.first.x << ", " << axis_end_pts.first.y << ", " << axis_end_pts.first.z << ")" << std::endl;
 	std::cout << "轴顶坐标: (" << axis_end_pts.second.x << ", " << axis_end_pts.second.y << ", " << axis_end_pts.second.z << ")" << std::endl;
 	// 计算底面和顶面的圆心
-	auto circle2d_center_pts = calcBottomTopCenter(cloud_cylinder, coefficients, axis_end_pts.first, axis_end_pts.second);
-	addLine(viewer, circle2d_center_pts.first, circle2d_center_pts.second,"line2",1.0,0.0,1.0); // 可视化圆心连线
-	std::cout << "底面圆心坐标: (" << circle2d_center_pts.first.x << ", " << circle2d_center_pts.first.y << ", " << circle2d_center_pts.first.z << ")" << std::endl;
-	std::cout << "顶面圆心坐标: (" << circle2d_center_pts.second.x << ", " << circle2d_center_pts.second.y << ", " << circle2d_center_pts.second.z << ")" << std::endl;
+	//auto circle2d_center_pts = calcBottomTopCenter(cloud_cylinder, coefficients, axis_end_pts.first, axis_end_pts.second);
+	//addLine(viewer, circle2d_center_pts.first, circle2d_center_pts.second,"line2",1.0,0.0,1.0); // 可视化圆心连线
+	//std::cout << "底面圆心坐标: (" << circle2d_center_pts.first.x << ", " << circle2d_center_pts.first.y << ", " << circle2d_center_pts.first.z << ")" << std::endl;
+	//std::cout << "顶面圆心坐标: (" << circle2d_center_pts.second.x << ", " << circle2d_center_pts.second.y << ", " << circle2d_center_pts.second.z << ")" << std::endl;
 
 }
 // 迭代分割
