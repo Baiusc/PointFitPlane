@@ -69,6 +69,14 @@ void hsv2rgb(float h, float s, float v, float* r, float* g, float* b)
 #pragma endregion
 
 #pragma region 通用点云算法
+// 在可视化工具中添加文字
+void addTextToViewport(pcl::visualization::PCLVisualizer& viewer, int viewport, const std::string& text, int x, int y, double r = 1.0, double g = 1.0, double b = 1.0)
+{
+	// 添加文字
+	viewer.addText(text, x, y, r, g, b, "text_" + std::to_string(viewport), viewport);
+}
+
+
 // 在可视化工具中添加2d圆
 void addCircle2D(pcl::visualization::PCLVisualizer& viewer, const pcl::ModelCoefficients& circle2d_coeff, const std::string& id) {
 	// 在可视化工具中添加圆
@@ -464,15 +472,18 @@ void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT po
 // 在可视化工具中添加线段
 void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT point2)
 {
+	if (viewer.contains("line")) {
+		viewer.removeShape("line", 1);
+	}
 	// 在可视化工具中添加线段
 	viewer.addLine(point1, point2, "line");
 
 	// 设置线段的颜色和宽度
 	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "line");
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 1, "line");
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line");
 }
 // 单次SAC分割
-void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::IndicesPtr indices) {
+void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::IndicesPtr indices_region) {
 
 	computeNormals(cloud, cloud_normals); // 计算法向
 	auto start = std::clock();
@@ -514,7 +525,7 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	extract.filter(*cloud_cylinder);
 
 	auto end_1 = std::clock();
-	std::cerr << "SAC分割，耗时：" << std::difftime(end_1, start) << "ms" << std::endl;
+	std::cout << "SAC分割，耗时：" << std::difftime(end_1, start) << "ms" << std::endl;
 
 	// 输出分割结果
 	std::cout << "模型系数: " << coefficients->values[0] << " "
@@ -523,8 +534,34 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 		<< coefficients->values[3] << std::endl;
 
 	std::cout << "模型内点: " << inliers->indices.size() << std::endl;
-	addCloudRGB(cloud_cylinder,255,0,0);
 
+	//addCloudRGB(cloud_cylinder,255,0,0);
+
+	//pcl::PointCloud<PointT>::Ptr cloud_display(new pcl::PointCloud<PointT>); //显示用的点云
+	//pcl::copyPointCloud(*cloud_input, *cloud_display);
+	//for (size_t i = 0; i < inliers->indices.size(); ++i) {
+	//	size_t idx = (*indices_region)[inliers->indices[i]];
+	//	cloud_display->points[idx].r = 255.0;
+	//	cloud_display->points[idx].g = 0.0;
+	//	cloud_display->points[idx].b = 0.0;
+	//}
+
+	// 创建颜色处理器
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> color_handler(cloud_cylinder, 0, 255, 0);
+
+	// 更新可视化工具中的点云数据
+	if (viewer.contains("cloud_cylinder")) {
+		viewer.updatePointCloud(cloud_cylinder, color_handler, "cloud_cylinder");
+	}
+	else
+	{
+		viewer.addPointCloud(cloud_cylinder, color_handler, "cloud_cylinder");
+		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "cloud_cylinder");
+	}
+
+
+	// 更新可视化工具中的点云数据
+	//viewer.updatePointCloud(cloud_display, "cloud1");
 
 	float x = coefficients->values[0]; // 圆柱轴起点的x坐标
 	float y = coefficients->values[1]; // 圆柱轴起点的y坐标
@@ -537,8 +574,55 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	// 计算圆柱轴端点
 	auto axis_end_pts = getCylinderAxisEndPoints(cloud_cylinder, coefficients); 
 	addLine(viewer, axis_end_pts.first, axis_end_pts.second); // 可视化圆柱轴线
+
+	
+
+	// 计算xy偏距
+	float dist_xy = sqrt(pow(axis_end_pts.first.x - axis_end_pts.second.x, 2) + pow(axis_end_pts.first.y - axis_end_pts.second.y, 2));
+
+	// 计算圆柱轴线高度
+	float height_axis = sqrt(pow(axis_end_pts.first.x - axis_end_pts.second.x, 2) + pow(axis_end_pts.first.y - axis_end_pts.second.y, 2) + pow(axis_end_pts.first.z - axis_end_pts.second.z, 2));
+
+	// 计算偏差比
+	float ratio = dist_xy / height_axis;
+
+	// 打印结果
 	std::cout << "轴底坐标: (" << axis_end_pts.first.x << ", " << axis_end_pts.first.y << ", " << axis_end_pts.first.z << ")" << std::endl;
 	std::cout << "轴顶坐标: (" << axis_end_pts.second.x << ", " << axis_end_pts.second.y << ", " << axis_end_pts.second.z << ")" << std::endl;
+	std::cout << "xy偏距: " << dist_xy << std::endl;
+	std::cout << "圆柱轴线高度: " << height_axis << std::endl;
+	std::cout << "偏差比: " << ratio << std::endl;
+
+	int x_cur = 20;
+	int y_cur = 40;
+	int y_offset = 20;
+	double r = 1.0;
+	double g = 1.0;
+	double b = 1.0;
+	int viewport = 1;
+	viewer.addText("Axis bottom coordinates: (" + std::to_string(axis_end_pts.first.x) + ", " + std::to_string(axis_end_pts.first.y) + ", " + std::to_string(axis_end_pts.first.z) + ")", x_cur, y_cur, r, g, b, "text_1", 1);
+	y_cur += y_offset;
+	viewer.addText("Axis top coordinates: (" + std::to_string(axis_end_pts.second.x) + ", " + std::to_string(axis_end_pts.second.y) + ", " + std::to_string(axis_end_pts.second.z) + ")", x_cur, y_cur, r, g, b, "text_2", 1);
+	y_cur += y_offset;
+	viewer.addText("XY offset: " + std::to_string(dist_xy), x_cur, y_cur, r, g, b, "text_3", 1);
+	y_cur += y_offset;
+	viewer.addText("Axis height: " + std::to_string(height_axis), x_cur, y_cur, r, g, b, "text_4", 1);
+	y_cur += y_offset;
+	viewer.addText("Ratio: " + std::to_string(ratio), x_cur, y_cur, r, g, b, "text_5", 1);
+
+	//viewer.addText("轴底坐标: (" + std::to_string(axis_end_pts.first.x) + ", " + std::to_string(axis_end_pts.first.y) + ", " + std::to_string(axis_end_pts.first.z) + ")", x_cur, y_cur, r, g, b, "text_1", 1);
+	//y_cur += y_offset;
+	//viewer.addText("轴顶坐标: (" + std::to_string(axis_end_pts.second.x) + ", " + std::to_string(axis_end_pts.second.y) + ", " + std::to_string(axis_end_pts.second.z) + ")", x_cur, y_cur, r, g, b, "text_2", 1);
+	//y_cur += y_offset;
+	//viewer.addText("xy偏距: " + std::to_string(dist_xy), x_cur, y_cur, r, g, b, "text_3", 1);
+	//y_cur += y_offset;
+	//viewer.addText("圆柱轴线高度: " + std::to_string(height_axis), x_cur, y_cur, r, g, b, "text_4", 1);
+	//y_cur += y_offset;
+	//viewer.addText("偏差比: " + std::to_string(ratio), x_cur, y_cur, r, g, b, "text_5", 1);
+
+
+
+
 	// 计算底面和顶面的圆心
 	//auto circle2d_center_pts = calcBottomTopCenter(cloud_cylinder, coefficients, axis_end_pts.first, axis_end_pts.second);
 	//addLine(viewer, circle2d_center_pts.first, circle2d_center_pts.second,"line2",1.0,0.0,1.0); // 可视化圆心连线
@@ -773,37 +857,42 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	selected_point.z = z;
 	int idx = event.getPointIndex(); 	// 获取选中点的索引
 	// 在终端输出选中点的坐标
+	if (z==0||idx<=10) 
+	{
+		std::cerr << "选点失败!请重新选点!" << idx << std::endl;
+		return;
+	}
 	std::cout << "选点：x=" << x << ", y=" << y << ", z=" << z << ", idx=" << idx << std::endl;
-
 	// 重绘选中的点 变色 变大
 	pcl::PointCloud<PointT>::Ptr selected_point_cloud(new pcl::PointCloud<PointT>);
 	selected_point_cloud->push_back(selected_point);
 	pcl::visualization::PointCloudColorHandlerCustom<PointT> red_color(selected_point_cloud, 255, 255, 255);
-	pcl::visualization::PointCloudColorHandlerCustom<PointT> green_color(selected_point_cloud, 0, 255, 0);
-	// 检查"selected_point"是否已存在，若已存在，则先从viewer 中remove "selected_point"
+	// 更新可视化工具中的点云数据
 	if (viewer.contains("selected_point")) {
-		viewer.removePointCloud("selected_point", 1);
+		viewer.updatePointCloud(selected_point_cloud, red_color, "selected_point");
 	}
-	viewer.addPointCloud(selected_point_cloud, red_color, "selected_point",1);
-	viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 30, "selected_point");
-
+	else
+	{
+		viewer.addPointCloud(selected_point_cloud, red_color, "selected_point");
+		viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "selected_point");
+	}
 	float radius = 2.0f;
-	float height = 40.0f;
+	float height = 60.0f;
 	float leaf_size = 0.2f;
 	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>);
 	pcl::IndicesPtr region_indices(new std::vector<int>);
 
 	// 分割出圆柱区域
 	segmentRegionCylinder(cloud_input, cloud_cylinder, region_indices, selected_point, radius, height);
-	addCylinder(viewer, selected_point, radius, height);  // 圆柱区域可视化
+	//addCylinder(viewer, selected_point, radius, height);  // 圆柱区域可视化
 	// 将区域内的点颜色改为绿色
-	for (size_t i = 0; i < region_indices->size(); ++i) {
-		int idx = (*region_indices)[i];
-		cloud_input->points[idx].r = 0;
-		cloud_input->points[idx].g = 255;
-		cloud_input->points[idx].b = 0;
-	}
-	viewer.updatePointCloud(cloud_input, "cloud1");
+	//for (size_t i = 0; i < region_indices->size(); ++i) {
+	//	int idx = (*region_indices)[i];
+	//	cloud_input->points[idx].r = 0;
+	//	cloud_input->points[idx].g = 255;
+	//	cloud_input->points[idx].b = 0;
+	//}
+	//viewer.updatePointCloud(cloud_input, "cloud1");
 
 	//filterVoxelGrid(cloud_cylinder, cloud_voxel, leaf_size);
 	// 区域拟合平面
@@ -895,12 +984,12 @@ int main(int argc, char** argv)
 
 	initViewer(viewer, cloud_input, selected_point);
 	addViewport(viewer, 1);
-	/*  addViewport(viewer, 2);
-	  addViewport(viewer, 3);
-	  addViewport(viewer, 4);*/
+	//addViewport(viewer, 2);
+	//addViewport(viewer, 3);
+	//addViewport(viewer, 4);
 
 	addCloud(viewer, cloud_input, 1);
-	//addCloud(viewer, cloud_input, 1, "z");
+	//addCloud(viewer, cloud_input, 2);
 
 
 	//viewer.spin();
