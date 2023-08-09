@@ -479,7 +479,7 @@ void addLine(pcl::visualization::PCLVisualizer& viewer, PointT point1, PointT po
 	viewer.addLine(point1, point2, "line");
 
 	// 设置线段的颜色和宽度
-	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 1.0, "line");
+	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 1.0, "line");
 	viewer.setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line");
 }
 // 单次SAC分割
@@ -593,22 +593,38 @@ void segmentCloud_Single(const pcl::PointCloud<PointT>::Ptr cloud , pcl::Indices
 	std::cout << "圆柱轴线高度: " << height_axis << std::endl;
 	std::cout << "偏差比: " << ratio << std::endl;
 
-	int x_cur = 20;
-	int y_cur = 40;
+	int x_cur = 60;
+	int y_cur = 60;
 	int y_offset = 20;
 	double r = 1.0;
 	double g = 1.0;
 	double b = 1.0;
 	int viewport = 1;
-	viewer.addText("Axis bottom coordinates: (" + std::to_string(axis_end_pts.first.x) + ", " + std::to_string(axis_end_pts.first.y) + ", " + std::to_string(axis_end_pts.first.z) + ")", x_cur, y_cur, r, g, b, "text_1", 1);
-	y_cur += y_offset;
-	viewer.addText("Axis top coordinates: (" + std::to_string(axis_end_pts.second.x) + ", " + std::to_string(axis_end_pts.second.y) + ", " + std::to_string(axis_end_pts.second.z) + ")", x_cur, y_cur, r, g, b, "text_2", 1);
-	y_cur += y_offset;
-	viewer.addText("XY offset: " + std::to_string(dist_xy), x_cur, y_cur, r, g, b, "text_3", 1);
-	y_cur += y_offset;
-	viewer.addText("Axis height: " + std::to_string(height_axis), x_cur, y_cur, r, g, b, "text_4", 1);
-	y_cur += y_offset;
-	viewer.addText("Ratio: " + std::to_string(ratio), x_cur, y_cur, r, g, b, "text_5", 1);
+	if (viewer.contains("text_1")) 
+	{
+		viewer.updateText("Axis bottom coordinates: (" + std::to_string(axis_end_pts.first.x) + ", " + std::to_string(axis_end_pts.first.y) + ", " + std::to_string(axis_end_pts.first.z) + ")", x_cur, y_cur, "text_1");
+		y_cur += y_offset;
+		viewer.updateText("Axis top coordinates: (" + std::to_string(axis_end_pts.second.x) + ", " + std::to_string(axis_end_pts.second.y) + ", " + std::to_string(axis_end_pts.second.z) + ")", x_cur, y_cur, "text_2");
+		y_cur += y_offset;
+		viewer.updateText("XY offset: " + std::to_string(dist_xy), x_cur, y_cur, "text_3");
+		y_cur += y_offset;
+		viewer.updateText("Axis height: " + std::to_string(height_axis), x_cur, y_cur, "text_4");
+		y_cur += y_offset;
+		viewer.updateText("Ratio: " + std::to_string(ratio), x_cur, y_cur, "text_5");
+	}
+	else
+	{
+		viewer.addText("Axis bottom coordinates: (" + std::to_string(axis_end_pts.first.x) + ", " + std::to_string(axis_end_pts.first.y) + ", " + std::to_string(axis_end_pts.first.z) + ")", x_cur, y_cur, r, g, b, "text_1", 1);
+		y_cur += y_offset;
+		viewer.addText("Axis top coordinates: (" + std::to_string(axis_end_pts.second.x) + ", " + std::to_string(axis_end_pts.second.y) + ", " + std::to_string(axis_end_pts.second.z) + ")", x_cur, y_cur, r, g, b, "text_2", 1);
+		y_cur += y_offset;
+		viewer.addText("XY offset: " + std::to_string(dist_xy), x_cur, y_cur, r, g, b, "text_3", 1);
+		y_cur += y_offset;
+		viewer.addText("Axis height: " + std::to_string(height_axis), x_cur, y_cur, r, g, b, "text_4", 1);
+		y_cur += y_offset;
+		viewer.addText("Ratio: " + std::to_string(ratio), x_cur, y_cur, r, g, b, "text_5", 1);
+	}
+
 
 	//viewer.addText("轴底坐标: (" + std::to_string(axis_end_pts.first.x) + ", " + std::to_string(axis_end_pts.first.y) + ", " + std::to_string(axis_end_pts.first.z) + ")", x_cur, y_cur, r, g, b, "text_1", 1);
 	//y_cur += y_offset;
@@ -860,9 +876,26 @@ void pointPickingCallback(const pcl::visualization::PointPickingEvent& event, vo
 	if (z==0||idx<=10) 
 	{
 		std::cerr << "选点失败!请重新选点!" << idx << std::endl;
+		if (viewer.contains("text_selected_point"))
+		{
+			viewer.updateText("Invalid point, Please select a new point ! ", 40, 40, 1.0, 1.0, 0.0, "text_selected_point");
+		}
+		else
+		{
+			viewer.addText("Invalid point, Please select a new point ! ", 40, 40, 1.0, 1.0, 0.0, "text_selected_point");
+		}
 		return;
 	}
 	std::cout << "选点：x=" << x << ", y=" << y << ", z=" << z << ", idx=" << idx << std::endl;
+	if (viewer.contains("text_selected_point"))
+	{
+		viewer.updateText("Selected point: x=" + std::to_string(x) + ", y=" + std::to_string(y) + ", z=" + std::to_string(z), 40, 40, 0.0, 1.0, 0.0, "text_selected_point");
+	}
+	else
+	{
+		viewer.addText("Selected point: x=" + std::to_string(x) + ", y=" + std::to_string(y) + ", z=" + std::to_string(z), 40, 40, 0.0, 1.0, 0.0, "text_selected_point", 1);
+	}
+
 	// 重绘选中的点 变色 变大
 	pcl::PointCloud<PointT>::Ptr selected_point_cloud(new pcl::PointCloud<PointT>);
 	selected_point_cloud->push_back(selected_point);
