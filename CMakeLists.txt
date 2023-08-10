@@ -56,7 +56,7 @@ if(PCL_FOUND)
     # 将PCL宏定义添加到链接器的搜索路径
     add_definitions(${PCL_DEFINITIONS})
     # 包含VTK的使用文件
-    include(${VTK_USE_FILE})
+    include_directories(${VTK_USE_FILE})
 else()
     message(FATAL_ERROR "!!!!!!!!PCL not found. Please specify the PCL installation path manually.")
 endif()
