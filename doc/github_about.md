@@ -13,6 +13,7 @@ git config --global user.email "这里换上你的邮箱"
 进入路径`C:\Users\Administrator`，命令行输入如下命令，执行生成你的sshkey
 ```bash
 ssh-keygen -t rsa -C "这里换上你的邮箱"
+ssh-keygen -t rsa -C "1148635540@qq.com"
 ```
 
 回车后会询问你ssh key生成的路径、是否需要密码，不需要的话直接留空回车即可。
@@ -40,7 +41,9 @@ git remote set-url origin git@github.com:你的仓库.git
 ```bash
 git config --global --list
 git config --global user.name bzs_work_pc
+git config --global user.name bzs_own_pc
 git config --global user.email baizhongshan@51creation.com
+git config --global user.email 1148635540@qq.com
 # 添加远程仓库
 git remote add github git@github.com:Baiusc/CMakeProject1.git
 git remote add gitee git@gitee.com/Baiusc/SeamRecognition.git 
