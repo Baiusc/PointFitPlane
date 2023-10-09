@@ -1,0 +1,228 @@
+[33mcommit 45d0db3b5004cd3fdb56dfc3489845c14d4d3d88[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Mon Aug 14 16:27:05 2023 +0800
+
+    修改忽略项
+
+[33mcommit c7d9d4eed54336dfe1a7aae43147cacafcb6fc89[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Mon Aug 14 15:32:17 2023 +0800
+
+    删除冗余方法
+
+[33mcommit a5ef913d9cfbfeeabb59672f12e38bdb3c165e12[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Mon Aug 14 10:57:40 2023 +0800
+
+    修改忽略项
+
+[33mcommit 61c3a45e3d5ba85cb5fd0aab6efeec98cfe1895a[m
+Merge: 32cf528 83c7442
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Fri Aug 11 11:27:40 2023 +0800
+
+    Merge branch 'main' of github.com:Baiusc/PointFitPlane
+
+[33mcommit 32cf528d0b6f99efd1945be26209df2af875ae06[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Fri Aug 11 11:27:33 2023 +0800
+
+    修改py脚本
+
+[33mcommit 83c744200b8dcd9c93f4ff56f845079929809f2e[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: bzs_own_pc <1148635540@qq.com>
+Date:   Thu Aug 10 23:21:14 2023 +0800
+
+    测试换用bzs_own_pc
+
+[33mcommit fb9bbd0a79a30d7b00d5f87b013a27fe36eb0bc9[m
+Author: baizhongshan <baizhongshan@51creation.com>
+Date:   Thu Aug 10 22:54:22 2023 +0800
+
+    修改md
+
+[33mcommit 6d15f2e7307393004044602070b922618b946902[m
+Author: baizhongshan <baizhongshan@51creation.com>
+Date:   Thu Aug 10 22:35:48 2023 +0800
+
+    include(${VTK_USE_FILE})在高版本vtk中应替换为include_directories(${VTK_USE_FILE})
+
+[33mcommit c05119762d01e63ebbb0f3c6f917cfee2cc9f186[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 10 09:52:44 2023 +0800
+
+    暂存
+
+[33mcommit 6faefcdb90dfe8347f1fddf4cbb1c4a32411cf93[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 9 17:19:37 2023 +0800
+
+    演示版本调通
+
+[33mcommit 0ad42c1d1548d59d440e25aa3df3c064d6dd6857[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 9 16:54:43 2023 +0800
+
+    ## viewer.addText不支持添加中文及中文符号
+
+[33mcommit c651dbab4c44ece7fbdad86639543bdca1a92979[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 9 15:04:31 2023 +0800
+
+    暂存
+
+[33mcommit 33abbf13e8d4dff7e4c65c64ac1192f1af0da44e[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 17:09:55 2023 +0800
+
+    最后，设置：vs-项目属性-C/C++-代码生成-启用增强指令集-高级矢量扩展2 。解决问题。
+
+[33mcommit a8af5caeca2e155ea83656b1c9c495ddbbf0a7b8[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 16:58:33 2023 +0800
+
+    去掉二维圆的显示
+
+[33mcommit b47e0295ab31610ad96b9fb2fae853f388e64abb[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 16:49:07 2023 +0800
+
+    addCircle添加的二维圆位于 z = 0 的平面上
+
+[33mcommit ac456befbb80928973a038f710cb31d745e911e0[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 16:21:40 2023 +0800
+
+     seg_top.setModelType(pcl::SACMODEL_CIRCLE3D);三维圆不好用，找出的圆法向跟(0,0,1)差远了
+
+[33mcommit b8c5d32c647394c772ca7fb6c4caeda9fa365f83[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 15:02:27 2023 +0800
+
+    轴线可视化调通
+
+[33mcommit 8231d09184883a086e1fbfab41e1670fea963bb2[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 12:03:30 2023 +0800
+
+    底面中心点坐标z值有问题，圆柱高度计算的没问题
+
+[33mcommit ec49ca33a4f6f4d47ca53fc04c71d2ccafc8ae56[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 11:32:19 2023 +0800
+
+     model_cylinder.selectWithinDistance(coeff, 0.01, inliers_ptr->indices);报cloud_input指针操作错误。这种错误通常是由于指针或引用未初始化或已被释放导致的。在您提供的代码中，可能是由于cloud指针未正确初始化或已被释放，导致model_cylinder.selectWithinDistance(coeff, 0.01, inliers_ptr->indices)函数在运行时出现错误。
+
+[33mcommit 8020358ea7fb0d6ba3f24a8e0d03510bd4877b9f[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 09:44:52 2023 +0800
+
+    修改readme
+
+[33mcommit 391b11232a7e7e5fe55f600746e9ed24373123fb[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Tue Aug 8 09:42:44 2023 +0800
+
+    整理重复引用
+
+[33mcommit 19f19b71d6a5b0b589e70aeccc3dbb5750626a0b[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Mon Aug 7 18:01:44 2023 +0800
+
+    在邻域内拟合圆柱完成。全流程调通
+
+[33mcommit 309aaa2c8ffda77353b0ad2d6cba07a6f3aa2327[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Mon Aug 7 16:26:20 2023 +0800
+
+    PCL圆柱体分割，需要法向量数据。因为圆柱体模型需要法向量来确定圆柱轴的方向和位置。如果只提供 XYZ 坐标，那么分割算法可能无法找到合适的圆柱体模型或者返回错误的结果。
+
+[33mcommit 0f9efc84d2c8169ccb306f173c51db3311851e8e[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Mon Aug 7 15:59:31 2023 +0800
+
+    分割选点邻域（指定半径和高）并可视化调通，下一步在邻域内拟合圆柱
+
+[33mcommit d9d40e0bdc352f97d022c55f24514ceac28ebf85[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Fri Aug 4 15:04:34 2023 +0800
+
+    regionGrowingSegmentation方法，区域增长分割算法分割效果不错，但耗时较长
+
+[33mcommit 02bccfbb4e7a0d6b055f720aa4fd4850c0ff1bd5[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 17:51:40 2023 +0800
+
+    判断条件已改为点面距离，后续考虑综合其他方式一起判断。明天研究先找点的邻居，再把领域放进原点云中进行模板匹配&平面拟合
+
+[33mcommit 6f65b86cc9ac7660ebea8b739aa09ebd9ed709c1[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 17:38:51 2023 +0800
+
+    包围盒判断不行，考虑改为点到面的距离判断
+
+[33mcommit 5a64f1030801250ab7ad913f1cc766ec13876587[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 16:28:03 2023 +0800
+
+    编译器在寻找程序入口点时，只会查找全局 main 函数，而不会查找命名空间中的 main 函数。
+
+[33mcommit ab737bfa55ae5451d0407c330c7d66528d589e02[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 14:58:36 2023 +0800
+
+    整理缩进
+
+[33mcommit f0dbd2cbf124c9424e9f6575b98df4b76ab9e87b[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 14:56:41 2023 +0800
+
+    提示缺少main函数
+
+[33mcommit c4715ff35d946f20dccacada4f9c89d6331eb005[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 14:40:14 2023 +0800
+
+    去掉MyFunc类 添加pch
+
+[33mcommit b96dd588935630d6110ba43485fbaf414bf675a9[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 11:52:41 2023 +0800
+
+    修改MyFunc为彻底的功能函数类
+
+[33mcommit dd690d26afca2939091ed7f76d80e3f31e344b0d[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Thu Aug 3 11:25:22 2023 +0800
+
+    断点无效不加载pdb也不报错时，优先重新生成
+
+[33mcommit 639c7367b7229ee45320c57e7a499092381f9724[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 2 17:22:07 2023 +0800
+
+    添加SACSegmentation测试代码
+
+[33mcommit 3f56152aea026ecbf96c022e23092b103adf534a[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 2 15:42:23 2023 +0800
+
+    更改项目类型为exe方便测试
+
+[33mcommit 273757c0287054b8fefd5f8221f25897e5620b22[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 2 15:17:51 2023 +0800
+
+    组织架构修改
+
+[33mcommit 8cf25793dc73683b5f7f71cff58874b0649d24cf[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 2 15:08:54 2023 +0800
+
+    更改cmakelists
+
+[33mcommit 133c2a0407c46a3f74768b6f42959b0e996246ab[m
+Author: bzs_work_pc <baizhongshan@51creation.com>
+Date:   Wed Aug 2 14:46:51 2023 +0800
+
+    提交项目文件，首次提交
